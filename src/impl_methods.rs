@@ -51,6 +51,42 @@ use iter::{
 };
 use stacking::stack;
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
+    /// Insert new array axis (length 1) at `axis` and return the result.
+    ///
+    /// ```
+    /// use ndarray::{Array2, arr1, arr2};
+    /// use ndarray::Axis;
+    ///
+    /// let a = arr1(&[1, 2, 3]);
+    /// let row = a.insert_axis(Axis(0));
+    /// assert_eq!(row, arr2(&[[1, 2, 3]]));
+    ///
+    /// let a = arr1(&[1, 2, 3]);
+    /// let col = a.insert_axis(Axis(1));
+    /// assert_eq!(col, arr2(&[[1], [2], [3]]));
+    ///
+    /// let a = arr1(&[1, 2, 3]);
+    /// let col: Array2<_> = a.insert_axis(Axis(1));
+    /// println!("{:?}", col);
+    /// ```
+    ///
+    /// ***Panics*** if the axis is out of bounds.
+    pub fn insert_axis<D2: Dimension<Smaller=D>>(self, axis: Axis) -> ArrayBase<S, D2>
+        where D2: InsertAxis,
+    {
+        let d = InsertAxis::insert_axis(&self.dim, axis);
+        let s = InsertAxis::insert_axis(&self.strides, axis);
+        ArrayBase {
+            ptr: self.ptr,
+            data: self.data,
+            dim: d,
+            strides: s,
+        }
+    }
+}
+
 /// # Methods For All Array Types
 impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
 {
