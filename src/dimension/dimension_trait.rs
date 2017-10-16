@@ -13,7 +13,7 @@ use std::ops::{Add, Sub, Mul, AddAssign, SubAssign, MulAssign};
 
 use itertools::{enumerate, zip};
 
-use {Ix, Ixs, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, Dim, Si, IxDynImpl};
+use {Ix, Ixs, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, Dim, Si, Si2, IxDynImpl};
 use IntoDimension;
 use RemoveAxis;
 use {ArrayView1, ArrayViewMut1};
@@ -57,6 +57,7 @@ pub trait Dimension : Clone + Eq + Debug + Send + Sync + Default +
     /// The easiest way to create a `&SliceArg` is using the macro
     /// [`s![]`](macro.s!.html).
     type SliceArg: ?Sized + AsRef<[Si]>;
+    type Slice2Arg: ?Sized + AsRef<[Si2]>;
     /// Pattern matching friendly form of the dimension value.
     ///
     /// - For `Ix1`: `usize`,
@@ -428,6 +429,7 @@ macro_rules! impl_insert_axis_array(
 
 impl Dimension for Dim<[Ix; 0]> {
     type SliceArg = [Si; 0];
+    type Slice2Arg = [Si2; 0];
     type Pattern = ();
     type Smaller = Self;
     type Larger = Ix1;
@@ -459,6 +461,7 @@ impl Dimension for Dim<[Ix; 0]> {
 
 impl Dimension for Dim<[Ix; 1]> {
     type SliceArg = [Si; 1];
+    type Slice2Arg = [Si2; 1];
     type Pattern = Ix;
     type Smaller = Ix0;
     type Larger = Ix2;
@@ -547,6 +550,7 @@ impl Dimension for Dim<[Ix; 1]> {
 
 impl Dimension for Dim<[Ix; 2]> {
     type SliceArg = [Si; 2];
+    type Slice2Arg = [Si2; 2];
     type Pattern = (Ix, Ix);
     type Smaller = Ix1;
     type Larger = Ix3;
@@ -677,6 +681,7 @@ impl Dimension for Dim<[Ix; 2]> {
 
 impl Dimension for Dim<[Ix; 3]> {
     type SliceArg = [Si; 3];
+    type Slice2Arg = [Si2; 3];
     type Pattern = (Ix, Ix, Ix);
     type Smaller = Ix2;
     type Larger = Ix4;
@@ -788,6 +793,7 @@ macro_rules! large_dim {
     ($n:expr, $name:ident, $pattern:ty, $larger:ty, { $($insert_axis:tt)* }) => (
         impl Dimension for Dim<[Ix; $n]> {
             type SliceArg = [Si; $n];
+            type Slice2Arg = [Si2; $n];
             type Pattern = $pattern;
             type Smaller = Dim<[Ix; $n - 1]>;
             type Larger = $larger;
@@ -834,6 +840,7 @@ large_dim!(6, Ix6, (Ix, Ix, Ix, Ix, Ix, Ix), IxDyn, {
 impl Dimension for IxDyn
 {
     type SliceArg = [Si];
+    type Slice2Arg = [Si2];
     type Pattern = Self;
     type Smaller = Self;
     type Larger = Self;

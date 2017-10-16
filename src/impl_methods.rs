@@ -32,6 +32,7 @@ use iterators::{
 use zip::Zip;
 
 use {
+    SliceIndex,
     NdIndex,
 };
 use iter::{
@@ -221,6 +222,12 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         let mut arr = self.view();
         arr.islice(indexes);
         arr
+    }
+
+    pub fn slice2<Do>(&self, _: SliceIndex<&D::Slice2Arg, Do>) -> ArrayView<A, Do>
+        where Do: Dimension
+    {
+        unimplemented!()
     }
 
     /// Return a sliced read-write view of the array.

@@ -7,7 +7,8 @@
 // except according to those terms.
 use std::ops::{Range, RangeFrom, RangeTo, RangeFull};
 use std::fmt;
-use super::Ixs;
+use std::marker::PhantomData;
+use super::{Dimension, Ixs};
 
 // [a:b:s] syntax for example [:3], [::-1]
 // [0,:] -- first row of matrix
@@ -174,3 +175,166 @@ macro_rules! s(
         s![@parse [] $($t)*]
     };
 );
+
+pub struct SliceIndex<T: ?Sized + AsRef<[Si2]>, D: Dimension> {
+    dim: PhantomData<D>,
+    ind: T,
+}
+
+impl<T: ?Sized + AsRef<[Si2]>, D: Dimension> SliceIndex<T, D> {
+    pub fn indices(&self) -> &[Si2] {
+        self.ind.as_ref()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Si2 {
+    Range(Si),
+    Subview(isize),
+}
+
+impl Si2 {
+    #[inline]
+    pub fn step(self, step: Ixs) -> Self {
+        match self {
+            Si2::Range(s) => Si2::Range(s.step(step)),
+            Si2::Subview(s) => Si2::Subview(s),
+        }
+    }
+}
+
+impl From<Range<Ixs>> for Si2 {
+    #[inline]
+    fn from(r: Range<Ixs>) -> Si2 {
+        Si2::Range(Si::from(r))
+    }
+}
+
+impl From<isize> for Si2 {
+    #[inline]
+    fn from(r: isize) -> Si2 {
+        Si2::Subview(r)
+    }
+}
+
+impl From<RangeFrom<Ixs>> for Si2 {
+    #[inline]
+    fn from(r: RangeFrom<Ixs>) -> Si2 {
+        Si2::Range(Si::from(r))
+    }
+}
+
+impl From<RangeTo<Ixs>> for Si2 {
+    #[inline]
+    fn from(r: RangeTo<Ixs>) -> Si2 {
+        Si2::Range(Si::from(r))
+    }
+}
+
+impl From<RangeFull> for Si2 {
+    #[inline]
+    fn from(r: RangeFull) -> Si2 {
+        Si2::Range(Si::from(r))
+    }
+}
+
+pub trait NewDim<D1, D2> {
+    fn new_dim(&self, PhantomData<D1>) -> PhantomData<D2>;
+}
+
+impl<D1: Dimension> NewDim<D1, D1::Larger> for Range<Ixs> {
+    fn new_dim(&self, _: PhantomData<D1>) -> PhantomData<D1::Larger> {
+        PhantomData
+    }
+}
+
+impl<D1: Dimension> NewDim<D1, D1::Larger> for RangeFrom<Ixs> {
+    fn new_dim(&self, _: PhantomData<D1>) -> PhantomData<D1::Larger> {
+        PhantomData
+    }
+}
+
+impl<D1: Dimension> NewDim<D1, D1::Larger> for RangeTo<Ixs> {
+    fn new_dim(&self, _: PhantomData<D1>) -> PhantomData<D1::Larger> {
+        PhantomData
+    }
+}
+
+impl<D1: Dimension> NewDim<D1, D1::Larger> for RangeFull {
+    fn new_dim(&self, _: PhantomData<D1>) -> PhantomData<D1::Larger> {
+        PhantomData
+    }
+}
+
+impl<D1: Dimension> NewDim<D1, D1> for isize {
+    fn new_dim(&self, _: PhantomData<D1>) -> PhantomData<D1> {
+        PhantomData
+    }
+}
+
+#[macro_export]
+macro_rules! s2(
+    // convert a..b;c into @step(a..b, c), final item
+    (@parse $d:expr, [$($stack:tt)*] $r:expr;$s:expr) => {
+        SliceIndex {
+            dim: $crate::NewDim::new_dim(&$r, $d),
+            ind: &[$($stack)* s2!(@step $r, $s)],
+        }
+    };
+    // convert a..b into @step(a..b, 1), final item
+    (@parse $d:expr, [$($stack:tt)*] $r:expr) => {
+        SliceIndex {
+            dim: $crate::NewDim::new_dim(&$r, $d),
+            ind: &[$($stack)* s2!(@step $r, 1)],
+        }
+    };
+    // convert a..b;c into @step(a..b, c), final item, trailing comma
+    (@parse $d:expr, [$($stack:tt)*] $r:expr;$s:expr ,) => {
+        SliceIndex {
+            dim: $crate::NewDim::new_dim(&$r, $d),
+            ind: &[$($stack)* s2!(@step $r, $s)],
+        }
+    };
+    // convert a..b into @step(a..b, 1), final item, trailing comma
+    (@parse $d:expr, [$($stack:tt)*] $r:expr ,) => {
+        SliceIndex {
+            dim: $crate::NewDim::new_dim(&$r, $d),
+            ind: &[$($stack)* s2!(@step $r, 1)],
+        }
+    };
+    // convert a..b;c into @step(a..b, c)
+    (@parse $d:expr, [$($stack:tt)*] $r:expr;$s:expr, $($t:tt)*) => {
+        s2![@parse $r.new_dim($d), [$($stack)* s2!(@step $r, $s),] $($t)*]
+    };
+    // convert a..b into @step(a..b, 1)
+    (@parse $d:expr, [$($stack:tt)*] $r:expr, $($t:tt)*) => {
+        s2![@parse $crate::NewDim::new_dim(&$r, $d), [$($stack)* s2!(@step $r, 1),] $($t)*]
+    };
+    // convert range, step into Si2
+    (@step $r:expr, $s:expr) => {
+        <$crate::Si2 as ::std::convert::From<_>>::from($r).step($s)
+    };
+    ($($t:tt)*) => {
+        s2![@parse ::std::marker::PhantomData::<$crate::Ix0>, [] $($t)*]
+    };
+);
+
+#[cfg(test)]
+mod tests {
+    use super::{SliceIndex, Si, Si2};
+    use super::super::Ix2;
+
+    #[test]
+    fn s2() {
+        let indexes: SliceIndex<&[Si2; 3], Ix2> = s2![1..5, 6, 4..;2];
+        assert_eq!(
+            indexes.ind,
+            &[
+                Si2::Range(Si(1, Some(5), 1)),
+                Si2::Subview(6),
+                Si2::Range(Si(4, None, 2))
+            ]
+        );
+        let _ = s2![1..5, 6, ..4;2];
+    }
+}
