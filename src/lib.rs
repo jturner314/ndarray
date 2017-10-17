@@ -108,6 +108,7 @@ pub use dimension::IxDynImpl;
 pub use indexes::{indices, indices_of};
 pub use error::{ShapeError, ErrorKind};
 pub use si::{Si, S};
+pub use impl_methods::{IntoSliceAxisOrIntoSubview, IntoSliceAxisOrIntoSubviewNextAxis};
 
 use iterators::Baseiter;
 use iterators::{ElementsBase, ElementsBaseMut, Iter, IterMut};

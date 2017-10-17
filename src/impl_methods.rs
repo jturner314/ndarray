@@ -33,6 +33,7 @@ use zip::Zip;
 
 use {
     NdIndex,
+    Si,
 };
 use iter::{
     AxisChunksIter,
@@ -255,7 +256,23 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         debug_assert!(self.pointer_is_inbounds());
     }
 
+    pub fn slice_axis<R>(&self, axis: Axis, indices: &Si) -> ArrayView<A, D> {
+        let mut arr = self.view();
+        arr.islice_axis(axis, indices);
+        arr
+    }
 
+    pub fn slice_axis_mut<R>(&mut self, axis: Axis, indices: &Si) -> ArrayViewMut<A, D>
+        where S: DataMut,
+    {
+        let mut arr = self.view_mut();
+        arr.islice_axis(axis, indices);
+        arr
+    }
+
+    pub fn islice_axis(&mut self, _axis: Axis, _indices: &Si) {
+        unimplemented!()
+    }
 
     /// Return a reference to the element at `index`, or return `None`
     /// if the index is out of bounds.
@@ -1624,5 +1641,78 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
                 mapping(ArrayView::new_(first_elt, Ix1(view_len), Ix1(view_stride)))
             }
         })
+    }
+}
+
+pub trait IntoSliceAxisOrIntoSubview<S: Data, R> {
+    type OutputDim;
+
+    fn into_slice_axis_or_into_subview(
+        self,
+        axis: Axis,
+        range_or_index: R,
+        step: Ixs,
+    ) -> ArrayBase<S, Self::OutputDim>;
+}
+
+impl<R, S, D> IntoSliceAxisOrIntoSubview<S, R> for ArrayBase<S, D>
+where
+    R: Into<Si>,
+    S: Data,
+    D: Dimension,
+{
+    type OutputDim = D;
+
+    fn into_slice_axis_or_into_subview(
+        mut self,
+        axis: Axis,
+        range: R,
+        step: Ixs,
+    ) -> ArrayBase<S, Self::OutputDim> {
+        self.islice_axis(axis, &range.into().step(step));
+        self
+    }
+}
+
+impl<S, D> IntoSliceAxisOrIntoSubview<S, Ixs> for ArrayBase<S, D>
+where
+    S: Data,
+    D: Dimension + RemoveAxis,
+{
+    type OutputDim = D::Smaller;
+
+    fn into_slice_axis_or_into_subview(
+        self,
+        axis: Axis,
+        index: Ixs,
+        _: Ixs,
+    ) -> ArrayBase<S, Self::OutputDim> {
+        let abs_index = if index < 0 {
+            (self.shape()[axis.index()] as Ixs + index) as Ix
+        } else {
+            index as Ix
+        };
+        self.into_subview(axis, abs_index)
+    }
+}
+
+pub trait IntoSliceAxisOrIntoSubviewNextAxis {
+    fn next_axis(&self, axis: Axis) -> Axis;
+}
+
+impl<R> IntoSliceAxisOrIntoSubviewNextAxis for R
+where
+    R: Into<Si>
+{
+    #[inline]
+    fn next_axis(&self, axis: Axis) -> Axis {
+        Axis(axis.index() + 1)
+    }
+}
+
+impl IntoSliceAxisOrIntoSubviewNextAxis for Ixs {
+    #[inline]
+    fn next_axis(&self, axis: Axis) -> Axis {
+        axis
     }
 }

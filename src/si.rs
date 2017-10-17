@@ -174,3 +174,56 @@ macro_rules! s(
         s![@parse [] $($t)*]
     };
 );
+
+#[macro_export]
+macro_rules! into_slice(
+    ($arr:tt[$($t:tt)*]) => {
+        into_slice!(@parse $arr, $crate::Axis(0), $($t)*)
+    };
+    // convert a..b;c into @apply(a..b, c), final item
+    (@parse $arr:expr, $axis:expr, $r:expr;$s:expr) => {
+        into_slice!(@apply $arr, $axis, $r, $s)
+    };
+    // convert a..b into @apply(a..b, 1), final item
+    (@parse $arr:expr, $axis:expr, $r:expr) => {
+        into_slice!(@apply $arr, $axis, $r, 1)
+    };
+    // convert a..b;c into @apply(a..b, c), final item, trailing comma
+    (@parse $arr:expr, $axis:expr, $r:expr;$s:expr ,) => {
+        into_slice!(@apply $arr, $axis, $r, $s)
+    };
+    // convert a..b into @apply(a..b, 1), final item, trailing comma
+    (@parse $arr:expr, $axis:expr, $r:expr ,) => {
+        into_slice!(@apply $arr, $axis, $r, 1)
+    };
+    // convert a..b;c into @apply(a..b, c)
+    (@parse $arr:expr, $axis:expr, $r:expr;$s:expr, $($t:tt)*) => {
+        into_slice!(@parse into_slice!(@apply $arr, $axis, $r, $s), into_slice!(@next_axis $axis, $r), $($t)*)
+    };
+    // convert a..b into @apply(a..b, 1)
+    (@parse $arr:expr, $axis:expr, $r:expr, $($t:tt)*) => {
+        into_slice!(@parse into_slice!(@apply $arr, $axis, $r, 1), into_slice!(@next_axis $axis, $r), $($t)*)
+    };
+    // get next axis index
+    (@next_axis $axis:expr, $r:expr) => {
+        $crate::IntoSliceAxisOrIntoSubviewNextAxis::next_axis(&$r, $axis)
+    };
+    // take slice or subview
+    (@apply $arr:expr, $axis:expr, $r:expr, $s:expr) => {
+        $crate::IntoSliceAxisOrIntoSubview::into_slice_axis_or_into_subview($arr, $axis, $r, $s)
+    };
+);
+
+#[macro_export]
+macro_rules! slice(
+    ($arr:tt[$($t:tt)*]) => {
+        into_slice!(@parse $arr.view(), $crate::Axis(0), $($t)*)
+    };
+);
+
+#[macro_export]
+macro_rules! slice_mut(
+    ($arr:tt[$($t:tt)*]) => {
+        into_slice!(@parse $arr.view_mut(), $crate::Axis(0), $($t)*)
+    };
+);
