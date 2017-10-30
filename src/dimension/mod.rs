@@ -11,6 +11,7 @@ use error::{from_kind, ErrorKind, ShapeError};
 
 pub use self::dim::*;
 pub use self::axis::Axis;
+pub use self::compare_dim::CompareDimensions;
 pub use self::conversion::IntoDimension;
 pub use self::dimension_trait::Dimension;
 pub use self::ndindex::NdIndex;
@@ -20,6 +21,7 @@ pub use self::dynindeximpl::IxDynImpl;
 
 #[macro_use] mod macros;
 mod axis;
+mod compare_dim;
 mod conversion;
 pub mod dim;
 mod dimension_trait;

@@ -101,6 +101,7 @@ pub use dimension::{
 };
 pub use dimension::dim::*;
 
+pub use dimension::CompareDimensions;
 pub use dimension::NdIndex;
 pub use dimension::IxDynImpl;
 pub use indexes::{indices, indices_of};
