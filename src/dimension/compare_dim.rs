@@ -40,7 +40,13 @@ where
 }
 
 pub trait CompareDimensions {
+    /// The smallest dimension type. If the smallest dimension cannot be
+    /// determined solely from the dimension types (i.e. if one of the
+    /// dimensions is `IxDyn`), the result is `IxDyn`.
     type Smallest;
+    /// The largest dimension type. If the largest dimension cannot be
+    /// determined solely from the dimension types (i.e. if one of the
+    /// dimensions is `IxDyn`), the result is `IxDyn`.
     type Largest;
     /// Determines the shape after broadcasting the dimensions together.
     ///
