@@ -6,6 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use BroadcastShapes;
 use num_complex::Complex;
 
 /// Elements that can be used as direct operands in arithmetic with arrays.
@@ -106,16 +107,28 @@ impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
 ///
 /// **Panics** if broadcasting isn’t possible.
 impl<'a, 'b, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'b ArrayBase<S, D>
-    where A: Clone + $trt<A, Output=A>,
+    where &'a A: 'a,
+          &'b A: 'b + $trt<&'a A, Output=A>,
           S: Data<Elem=A>,
           S2: Data<Elem=A>,
-          D: Dimension,
+          D: Dimension + BroadcastShapes<E>,
           E: Dimension,
+          // <D as BroadcastShapes<E>>::Output: 'a + 'b,
 {
-    type Output = Array<A, D>;
-    fn $mth(self, rhs: &'a ArrayBase<S2, E>) -> Array<A, D> {
-        // FIXME: Can we co-broadcast arrays here? And how?
-        self.to_owned().$mth(rhs)
+    type Output = Array<A, <D as BroadcastShapes<E>>::Output>;
+    fn $mth(self, rhs: &'a ArrayBase<S2, E>) -> Self::Output {
+        // TODO: remove this unwrap
+        let self_view = self.broadcast_with(rhs.dim.clone()).unwrap();
+        // TODO: remove this unwrap
+        let rhs_view = rhs.broadcast(self_view.dim.clone()).unwrap();
+        // let mut new = Array::uninitialized(self_view.dim);
+        // Zip::from(&mut new).and(&self_view).and(&rhs_view).apply(
+        //     |new, s, r| *new = $trt::$mth(s, r)
+        // );
+        let v: Vec<_> = self_view.iter().zip(rhs_view.iter())
+            .map(|(s, r)| $trt::$mth(s, r))
+            .collect();
+        Array::from_shape_vec_unchecked(self_view.dim, v)
     }
 }
 

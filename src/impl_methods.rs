@@ -1366,7 +1366,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         unsafe { Some(ArrayView::new_(self.ptr, dim, broadcast_strides)) }
     }
 
-    fn broadcast_with<E>(&self, dim: E) -> Option<ArrayView<A, <D as BroadcastShapes<E::Dim>>::Output>>
+    pub(crate) fn broadcast_with<E>(&self, dim: E) -> Option<ArrayView<A, <D as BroadcastShapes<E::Dim>>::Output>>
     where
         D: BroadcastShapes<E::Dim>,
         E: IntoDimension,
@@ -1385,7 +1385,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         unsafe { Some(ArrayView::new_(self.ptr, new_shape, new_stride)) }
     }
 
-    fn broadcast_with_mut<E>(&mut self, dim: E) -> Option<ArrayViewMut<A, <D as BroadcastShapes<E::Dim>>::Output>>
+    pub(crate) fn broadcast_with_mut<E>(&mut self, dim: E) -> Option<ArrayViewMut<A, <D as BroadcastShapes<E::Dim>>::Output>>
     where
         D: BroadcastShapes<E::Dim>,
         E: IntoDimension,
