@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use std::cmp;
+use std::iter;
 use std::ptr as std_ptr;
 use std::slice;
 
@@ -30,6 +31,7 @@ use iterators::{
 use zip::Zip;
 
 use {
+    BroadcastShapes,
     NdIndex,
     Slice,
     SliceInfo,
@@ -1323,6 +1325,107 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             None => return None,
         };
         unsafe { Some(ArrayView::new_(self.ptr, dim, broadcast_strides)) }
+    }
+
+    fn broadcast_with<E>(&self, dim: E) -> Option<ArrayView<A, <D as BroadcastShapes<E::Dim>>::Output>>
+    where
+        D: BroadcastShapes<E::Dim>,
+        E: IntoDimension,
+    {
+        /// Return `(new_shape, new_stride)` when trying to grow `this_shape` to be
+        /// the shape of the result of broadcasting with shape `other_shape`.
+        ///
+        /// Broadcasting works by returning a "fake stride" where elements
+        /// to repeat are in axes with 0 stride, so that several indexes point
+        /// to the same element.
+        ///
+        /// **Note:** Cannot be used for mutable iterators, since repeating
+        /// elements would create aliasing pointers.
+        fn upcast<Do: Dimension>(
+            this_shape: &[Ix],
+            this_stride: &[Ix],
+            other_shape: &[Ix],
+        ) -> Option<(Do, Do)> {
+            let new_ndim = cmp::max(this_shape.len(), other_shape.len());
+            let mut new_shape = Do::zero_index_with_ndim(new_ndim);
+            let mut new_stride = Do::zero_index_with_ndim(new_ndim);
+            let zipped_in = izip!(
+                this_shape.iter().rev().chain(iter::repeat(&1)),
+                this_stride.iter().rev().chain(iter::repeat(&0)),
+                other_shape.iter().rev().chain(iter::repeat(&1)),
+            ).take(new_ndim);
+            let zipped_out = new_shape.iter_mut().zip(new_stride.iter_mut());
+            for ((&this_len, &this_st, &other_len), (new_len, new_st)) in zipped_in.zip(zipped_out) {
+                if this_len == other_len || other_len == 1 {
+                    *new_len = this_len;
+                    *new_st = this_st;
+                } else if this_len == 1 {
+                    *new_len = other_len;
+                    *new_st = 0;
+                } else {
+                    return None;
+                }
+            }
+            Some((new_shape, new_stride))
+        }
+        let other_shape = dim.into_dimension();
+
+        // Note: zero strides are safe precisely because we return an read-only view
+        let (new_shape, new_stride) =
+            match upcast(self.dim.slice(), self.strides.slice(), other_shape.slice()) {
+                Some(r) => r,
+                None => return None,
+            };
+        unsafe { Some(ArrayView::new_(self.ptr, new_shape, new_stride)) }
+    }
+
+    fn broadcast_with_mut<E>(&mut self, dim: E) -> Option<ArrayViewMut<A, <D as BroadcastShapes<E::Dim>>::Output>>
+    where
+        D: BroadcastShapes<E::Dim>,
+        E: IntoDimension,
+    {
+        /// Return `(new_shape, new_stride)` when trying to grow `this_shape` to be
+        /// the shape of the result of broadcasting with shape `other_shape`.
+        ///
+        /// Broadcasting works by returning a "fake stride" where elements
+        /// to repeat are in axes with 0 stride, so that several indexes point
+        /// to the same element.
+        ///
+        /// **Note:** This is more limited than read-only broadcasting. To
+        /// avoid mutable aliasing pointers, the only allowable modification to
+        /// the shape is to insert `1`s at the start of the shape.
+        fn upcast<Do: Dimension>(
+            this_shape: &[Ix],
+            this_stride: &[Ix],
+            other_shape: &[Ix],
+        ) -> Option<(Do, Do)> {
+            let new_ndim = cmp::max(this_shape.len(), other_shape.len());
+            let mut new_shape = Do::zero_index_with_ndim(new_ndim);
+            let mut new_stride = Do::zero_index_with_ndim(new_ndim);
+            let zipped_in = izip!(
+                this_shape.iter().rev().chain(iter::repeat(&1)),
+                this_stride.iter().rev().chain(iter::repeat(&0)),
+                other_shape.iter().rev().chain(iter::repeat(&1)),
+            ).take(new_ndim);
+            let zipped_out = new_shape.iter_mut().zip(new_stride.iter_mut());
+            for ((&this_len, &this_st, &other_len), (new_len, new_st)) in zipped_in.zip(zipped_out) {
+                if this_len == other_len {
+                    *new_len = this_len;
+                    *new_st = this_st;
+                } else {
+                    return None;
+                }
+            }
+            Some((new_shape, new_stride))
+        }
+        let other_shape = dim.into_dimension();
+
+        let (new_shape, new_stride) =
+            match upcast(self.dim.slice(), self.strides.slice(), other_shape.slice()) {
+                Some(r) => r,
+                None => return None,
+            };
+        unsafe { Some(ArrayViewMut::new_(self.ptr, new_shape, new_stride)) }
     }
 
     /// Swap axes `ax` and `bx`.
