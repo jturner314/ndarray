@@ -60,14 +60,14 @@ macro_rules! impl_binary_op(
 ///
 /// **Panics** if broadcasting isn’t possible.
 impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
-    where A: Clone + $trt<A, Output=A>,
+    where for<'a> &'a A: $trt<&'a A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
           S2: Data<Elem=A>,
-          D: Dimension,
+          D: Dimension + BroadcastShapes<E>,
           E: Dimension,
 {
-    type Output = ArrayBase<S, D>;
-    fn $mth(self, rhs: ArrayBase<S2, E>) -> ArrayBase<S, D>
+    type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
+    fn $mth(self, rhs: ArrayBase<S2, E>) -> Self::Output
     {
         self.$mth(&rhs)
     }
@@ -82,19 +82,23 @@ impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
 ///
 /// **Panics** if broadcasting isn’t possible.
 impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
-    where A: Clone + $trt<A, Output=A>,
+    where &'a A: 'a + $trt<&'a A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
           S2: Data<Elem=A>,
-          D: Dimension,
+          D: Dimension + BroadcastShapes<E>,
           E: Dimension,
 {
-    type Output = ArrayBase<S, D>;
-    fn $mth(mut self, rhs: &ArrayBase<S2, E>) -> ArrayBase<S, D>
+    type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
+    fn $mth(mut self, rhs: &ArrayBase<S2, E>) -> Self::Output
     {
-        self.zip_mut_with(rhs, |x, y| {
-            *x = x.clone() $operator y.clone();
-        });
-        self
+        match self.broadcast_with_mut(rhs.dim.clone()) {
+            Some(self_view_mut) => {
+                let rhs_view = rhs.broadcast(self_view_mut.dim.clone()).unwrap();
+                self_view_mut.zip_mut_with_same_shape(&rhs_view, |s, r| *s = $trt::$mth(s, r));
+                self
+            }
+            None => $trt::$mth(&self, rhs)
+        }
     }
 }
 
@@ -106,14 +110,12 @@ impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
 /// If their shapes disagree, `rhs` is broadcast to the shape of `self`.
 ///
 /// **Panics** if broadcasting isn’t possible.
-impl<'a, 'b, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'b ArrayBase<S, D>
-    where &'a A: 'a,
-          &'b A: 'b + $trt<&'a A, Output=A>,
+impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'a ArrayBase<S, D>
+    where &'a A: 'a + $trt<&'a A, Output=A>,
           S: Data<Elem=A>,
           S2: Data<Elem=A>,
           D: Dimension + BroadcastShapes<E>,
           E: Dimension,
-          // <D as BroadcastShapes<E>>::Output: 'a + 'b,
 {
     type Output = Array<A, <D as BroadcastShapes<E>>::Output>;
     fn $mth(self, rhs: &'a ArrayBase<S2, E>) -> Self::Output {
@@ -121,10 +123,6 @@ impl<'a, 'b, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'b ArrayBase<S, D>
         let self_view = self.broadcast_with(rhs.dim.clone()).unwrap();
         // TODO: remove this unwrap
         let rhs_view = rhs.broadcast(self_view.dim.clone()).unwrap();
-        // let mut new = Array::uninitialized(self_view.dim);
-        // Zip::from(&mut new).and(&self_view).and(&rhs_view).apply(
-        //     |new, s, r| *new = $trt::$mth(s, r)
-        // );
         let v: Vec<_> = self_view.iter().zip(rhs_view.iter())
             .map(|(s, r)| $trt::$mth(s, r))
             .collect();

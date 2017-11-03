@@ -49,22 +49,9 @@ pub trait BroadcastShapes<Other: Dimension>: Dimension {
     }
 }
 
-macro_rules! impl_broadcast_identity {
-    ($dim:ty) => {
-        impl BroadcastShapes<$dim> for $dim {
-            type Output = $dim;
-        }
-    }
+impl<D: Dimension> BroadcastShapes<D> for D {
+    type Output = D;
 }
-
-impl_broadcast_identity!(Ix0);
-impl_broadcast_identity!(Ix1);
-impl_broadcast_identity!(Ix2);
-impl_broadcast_identity!(Ix3);
-impl_broadcast_identity!(Ix4);
-impl_broadcast_identity!(Ix5);
-impl_broadcast_identity!(Ix6);
-impl_broadcast_identity!(IxDyn);
 
 macro_rules! impl_broadcast_distinct_fixed {
     ($smaller:ty, $larger:ty) => {

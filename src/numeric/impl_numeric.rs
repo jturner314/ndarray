@@ -33,8 +33,9 @@ impl<A, S, D> ArrayBase<S, D>
     ///                [3., 4.]]);
     /// assert_eq!(a.scalar_sum(), 10.);
     /// ```
-    pub fn scalar_sum(&self) -> A
-        where A: Clone + Add<Output=A> + libnum::Zero,
+    pub fn scalar_sum<'a>(&'a self) -> A
+        where A: Clone + Zero,
+              &'a A: 'a + Add<&'a A, Output=A>
     {
         if let Some(slc) = self.as_slice_memory_order() {
             return numeric_util::unrolled_sum(slc);
@@ -66,8 +67,9 @@ impl<A, S, D> ArrayBase<S, D>
     /// ```
     ///
     /// **Panics** if `axis` is out of bounds.
-    pub fn sum_axis(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: Clone + Zero + Add<Output=A>,
+    pub fn sum_axis<'a>(&'a self, axis: Axis) -> Array<A, D::Smaller>
+        where A: Clone + Zero,
+              &'a A: 'a + Add<&'a A, Output=A>,
               D: RemoveAxis,
     {
         let n = self.len_of(axis);
