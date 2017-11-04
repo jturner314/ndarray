@@ -78,7 +78,7 @@ fn broadcast_with<Do: Dimension>(
         this_stride.iter().rev().chain(iter::repeat(&0)),
         other_shape.iter().rev().chain(iter::repeat(&1)),
     ).take(new_ndim);
-    let zipped_out = new_shape.iter_mut().zip(new_stride.iter_mut());
+    let zipped_out = new_shape.slice_mut().iter_mut().zip(new_stride.slice_mut());
     for ((&this_len, &this_st, &other_len), (new_len, new_st)) in zipped_in.zip(zipped_out) {
         if this_len == other_len || other_len == 1 {
             *new_len = this_len;
