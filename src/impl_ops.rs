@@ -8,6 +8,7 @@
 
 use BroadcastShapes;
 use num_complex::Complex;
+use std::{mem, ptr};
 
 /// Elements that can be used as direct operands in arithmetic with arrays.
 ///
@@ -52,25 +53,32 @@ macro_rules! impl_binary_op(
 /// Perform elementwise
 #[doc=$doc]
 /// between `self` and `rhs`,
-/// and return the result (based on `self`).
+/// and return the result.
 ///
 /// `self` must be an `Array` or `RcArray`.
 ///
 /// If their shapes disagree, `rhs` is broadcast to the shape of `self`.
 ///
+/// **Warning** If the
+#[doc=$doc]
+/// operation panics, `self` might not get dropped.
+///
 /// **Panics** if broadcasting isn’t possible.
 impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
-    where for<'a> &'a A: $trt<&'a A, Output=A>,
+    where for<'a> A: Clone + $trt<&'a A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
           S2: DataOwned<Elem=A> + DataMut,
           D: Dimension + BroadcastShapes<E>,
-          E: Dimension,
+          E: Dimension + BroadcastShapes<D>,
 {
-    type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
+    type Output = Array<A, <D as BroadcastShapes<E>>::Output>;
     fn $mth(self, rhs: ArrayBase<S2, E>) -> Self::Output
     {
-        // TODO: choose whether mutating self or mutating rhs is more efficient
-        self.$mth(&rhs)
+        if self.len() >= rhs.len() {
+            $trt::$mth(self, &rhs)
+        } else {
+            $trt::$mth(rhs, &self).into_dimensionality().unwrap()
+        }
     }
 }
 
@@ -81,22 +89,35 @@ impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
 ///
 /// If their shapes disagree, `rhs` is broadcast to the shape of `self`.
 ///
+/// **Warning** If the
+#[doc=$doc]
+/// operation panics, `self` might not get dropped.
+///
 /// **Panics** if broadcasting isn’t possible.
 impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
-    where for<'b> &'b A: $trt<&'b A, Output=A>,
+    where for<'b> A: Clone + $trt<&'b A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
           S2: Data<Elem=A>,
           D: Dimension + BroadcastShapes<E>,
           E: Dimension,
 {
-    type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
+    type Output = Array<A, <D as BroadcastShapes<E>>::Output>;
     fn $mth(self, rhs: &ArrayBase<S2, E>) -> Self::Output
     {
         match self.broadcast_with_move(rhs.dim.clone()) {
-            Ok(mut self_broad) => {
-                let rhs_view = rhs.broadcast(self_broad.dim.clone()).unwrap();
-                self_broad.zip_mut_with(&rhs_view, |s, r| *s = $trt::$mth(&*s, r));
-                self_broad
+            Ok(broad) => {
+                let rhs_view = rhs.broadcast(broad.dim.clone()).unwrap();
+                let mut broad_man_drop = mem::ManuallyDrop::new(broad);
+                broad_man_drop.zip_mut_with(&rhs_view, |s, r| {
+                    let old_s = unsafe {
+                        ptr::read(s)
+                    };
+                    let new_s = $trt::$mth(old_s, r);
+                    unsafe {
+                        ptr::write(s, new_s);
+                    }
+                });
+                mem::ManuallyDrop::into_inner(broad_man_drop)
             }
             Err(self_) => {
                 // TODO: remove this unwrap
@@ -104,10 +125,10 @@ impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
                 // TODO: remove this unwrap
                 let rhs_view = rhs.broadcast(self_view.dim.clone()).unwrap();
                 let v: Vec<_> = self_view.iter().zip(rhs_view.iter())
-                    .map(|(s, r)| $trt::$mth(s, r))
+                    .map(|(s, r)| $trt::$mth(s.clone(), r))
                     .collect();
                 unsafe {
-                    ArrayBase::from_shape_vec_unchecked(self_view.dim, v)
+                    Array::from_shape_vec_unchecked(self_view.dim, v)
                 }
             }
         }

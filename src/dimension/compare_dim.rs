@@ -1,6 +1,3 @@
-use error::*;
-use std::cmp;
-use std::iter;
 use {Dimension, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn};
 
 pub trait CompareDimensions<D1: Dimension, D2: Dimension> {

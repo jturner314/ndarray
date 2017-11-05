@@ -1410,9 +1410,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         })
     }
 
-    pub(crate) fn broadcast_with_move<E>(mut self, dim: E) -> Result<ArrayBase<S, <D as BroadcastShapes<E::Dim>>::Output>, Self>
+    pub(crate) fn broadcast_with_move<E>(self, dim: E) -> Result<Array<A, <D as BroadcastShapes<E::Dim>>::Output>, Self>
     where
-        S: DataMut,
+        A: Clone,
+        S: DataOwned + DataMut,
         D: BroadcastShapes<E::Dim>,
         E: IntoDimension,
     {
@@ -1427,13 +1428,12 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             Some(r) => r,
             None => return Err(self),
         };
-        self.ensure_unique();
-        Ok(ArrayBase {
+        Ok(S::into_unshared(ArrayBase {
             data: self.data,
             ptr: self.ptr,
             dim: new_shape,
             strides: new_stride,
-        })
+        }))
     }
 
     /// Swap axes `ax` and `bx`.
@@ -1773,6 +1773,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
               F: Fn(A) -> A,
               A: Clone,
     {
+        // TODO: We don't actually need to clone all the elements like mapv_inplace does.
         self.mapv_inplace(f);
         self
     }

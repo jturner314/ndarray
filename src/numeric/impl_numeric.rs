@@ -33,8 +33,7 @@ impl<A, S, D> ArrayBase<S, D>
     /// assert_eq!(a.scalar_sum(), 10.);
     /// ```
     pub fn scalar_sum(&self) -> A
-        where A: Clone + Zero,
-              for<'a> &'a A: Add<&'a A, Output=A>
+        where for<'a> A: Clone + Zero + Add<&'a A, Output=A>
     {
         if let Some(slc) = self.as_slice_memory_order() {
             return numeric_util::unrolled_sum(slc);
@@ -67,8 +66,7 @@ impl<A, S, D> ArrayBase<S, D>
     ///
     /// **Panics** if `axis` is out of bounds.
     pub fn sum_axis(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: Clone + Zero,
-              for<'a> &'a A: Add<&'a A, Output=A>,
+        where for<'a> A: Clone + Zero + Add<&'a A, Output=A>,
               D: RemoveAxis,
     {
         let n = self.len_of(axis);
@@ -104,18 +102,16 @@ impl<A, S, D> ArrayBase<S, D>
     /// );
     /// ```
     pub fn mean_axis(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: Clone + One + Zero,
-              for<'a> &'a A: Add<&'a A, Output=A> + Div<&'a A, Output=A>,
+        where for<'a> A: Clone + One + Zero + Add<&'a A, Output=A> + Div<&'a A, Output=A>,
               D: RemoveAxis,
     {
         let n = self.len_of(axis);
-        let mut sum = self.sum_axis(axis);
+        let sum = self.sum_axis(axis);
         let mut cnt = A::one();
         for _ in 1..n {
             cnt = cnt + A::one();
         }
-        sum.map_inplace(|s| *s = &*s / &cnt);
-        sum
+        sum.mapv_into(|s| s / &cnt)
     }
 
     /// Return `true` if the arrays' elementwise differences are all within
