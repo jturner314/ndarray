@@ -6,15 +6,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::ops::Add;
-use libnum::{self, Zero, Float};
+use std::ops::{Add, Div};
+use libnum::{One, Zero, Float};
 use itertools::free::enumerate;
 
 use imp_prelude::*;
 use numeric_util;
 
 use {
-    LinalgScalar,
     FoldWhile,
     Zip,
 };
@@ -33,9 +32,9 @@ impl<A, S, D> ArrayBase<S, D>
     ///                [3., 4.]]);
     /// assert_eq!(a.scalar_sum(), 10.);
     /// ```
-    pub fn scalar_sum<'a>(&'a self) -> A
+    pub fn scalar_sum(&self) -> A
         where A: Clone + Zero,
-              &'a A: 'a + Add<&'a A, Output=A>
+              for<'a> &'a A: Add<&'a A, Output=A>
     {
         if let Some(slc) = self.as_slice_memory_order() {
             return numeric_util::unrolled_sum(slc);
@@ -67,9 +66,9 @@ impl<A, S, D> ArrayBase<S, D>
     /// ```
     ///
     /// **Panics** if `axis` is out of bounds.
-    pub fn sum_axis<'a>(&'a self, axis: Axis) -> Array<A, D::Smaller>
+    pub fn sum_axis(&self, axis: Axis) -> Array<A, D::Smaller>
         where A: Clone + Zero,
-              &'a A: 'a + Add<&'a A, Output=A>,
+              for<'a> &'a A: Add<&'a A, Output=A>,
               D: RemoveAxis,
     {
         let n = self.len_of(axis);
@@ -90,15 +89,6 @@ impl<A, S, D> ArrayBase<S, D>
         res
     }
 
-    /// Old name for `sum_axis`.
-    #[deprecated(note="Use new name .sum_axis()")]
-    pub fn sum(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: Clone + Zero + Add<Output=A>,
-              D: RemoveAxis,
-    {
-        self.sum_axis(axis)
-    }
-
     /// Return mean along `axis`.
     ///
     /// **Panics** if `axis` is out of bounds.
@@ -114,25 +104,18 @@ impl<A, S, D> ArrayBase<S, D>
     /// );
     /// ```
     pub fn mean_axis(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: LinalgScalar,
+        where A: Clone + One + Zero,
+              for<'a> &'a A: Add<&'a A, Output=A> + Div<&'a A, Output=A>,
               D: RemoveAxis,
     {
         let n = self.len_of(axis);
-        let sum = self.sum_axis(axis);
+        let mut sum = self.sum_axis(axis);
         let mut cnt = A::one();
         for _ in 1..n {
             cnt = cnt + A::one();
         }
-        sum / &aview0(&cnt)
-    }
-
-    /// Old name for `mean_axis`.
-    #[deprecated(note="Use new name .mean_axis()")]
-    pub fn mean(&self, axis: Axis) -> Array<A, D::Smaller>
-        where A: LinalgScalar,
-              D: RemoveAxis,
-    {
-        self.mean_axis(axis)
+        sum.map_inplace(|s| *s = &*s / &cnt);
+        sum
     }
 
     /// Return `true` if the arrays' elementwise differences are all within

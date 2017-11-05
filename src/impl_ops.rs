@@ -62,13 +62,14 @@ macro_rules! impl_binary_op(
 impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
     where for<'a> &'a A: $trt<&'a A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
-          S2: Data<Elem=A>,
+          S2: DataOwned<Elem=A> + DataMut,
           D: Dimension + BroadcastShapes<E>,
           E: Dimension,
 {
     type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
     fn $mth(self, rhs: ArrayBase<S2, E>) -> Self::Output
     {
+        // TODO: choose whether mutating self or mutating rhs is more efficient
         self.$mth(&rhs)
     }
 }
@@ -82,22 +83,33 @@ impl<A, S, S2, D, E> $trt<ArrayBase<S2, E>> for ArrayBase<S, D>
 ///
 /// **Panics** if broadcasting isn’t possible.
 impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
-    where &'a A: 'a + $trt<&'a A, Output=A>,
+    where for<'b> &'b A: $trt<&'b A, Output=A>,
           S: DataOwned<Elem=A> + DataMut,
           S2: Data<Elem=A>,
           D: Dimension + BroadcastShapes<E>,
           E: Dimension,
 {
     type Output = ArrayBase<S, <D as BroadcastShapes<E>>::Output>;
-    fn $mth(mut self, rhs: &ArrayBase<S2, E>) -> Self::Output
+    fn $mth(self, rhs: &ArrayBase<S2, E>) -> Self::Output
     {
-        match self.broadcast_with_mut(rhs.dim.clone()) {
-            Some(self_view_mut) => {
-                let rhs_view = rhs.broadcast(self_view_mut.dim.clone()).unwrap();
-                self_view_mut.zip_mut_with_same_shape(&rhs_view, |s, r| *s = $trt::$mth(s, r));
-                self
+        match self.broadcast_with_move(rhs.dim.clone()) {
+            Ok(mut self_broad) => {
+                let rhs_view = rhs.broadcast(self_broad.dim.clone()).unwrap();
+                self_broad.zip_mut_with(&rhs_view, |s, r| *s = $trt::$mth(&*s, r));
+                self_broad
             }
-            None => $trt::$mth(&self, rhs)
+            Err(self_) => {
+                // TODO: remove this unwrap
+                let self_view = self_.broadcast_with(rhs.dim.clone()).unwrap();
+                // TODO: remove this unwrap
+                let rhs_view = rhs.broadcast(self_view.dim.clone()).unwrap();
+                let v: Vec<_> = self_view.iter().zip(rhs_view.iter())
+                    .map(|(s, r)| $trt::$mth(s, r))
+                    .collect();
+                unsafe {
+                    ArrayBase::from_shape_vec_unchecked(self_view.dim, v)
+                }
+            }
         }
     }
 }
@@ -111,7 +123,7 @@ impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for ArrayBase<S, D>
 ///
 /// **Panics** if broadcasting isn’t possible.
 impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'a ArrayBase<S, D>
-    where &'a A: 'a + $trt<&'a A, Output=A>,
+    where for<'b> &'b A: $trt<&'b A, Output=A>,
           S: Data<Elem=A>,
           S2: Data<Elem=A>,
           D: Dimension + BroadcastShapes<E>,
@@ -126,7 +138,9 @@ impl<'a, A, S, S2, D, E> $trt<&'a ArrayBase<S2, E>> for &'a ArrayBase<S, D>
         let v: Vec<_> = self_view.iter().zip(rhs_view.iter())
             .map(|(s, r)| $trt::$mth(s, r))
             .collect();
-        Array::from_shape_vec_unchecked(self_view.dim, v)
+        unsafe {
+            Array::from_shape_vec_unchecked(self_view.dim, v)
+        }
     }
 }
 

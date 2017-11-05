@@ -580,7 +580,8 @@ pub type Ixs = isize;
 /// `+`, `-`, `*`, `/` and so on).
 ///
 /// - `&A @ &A` which produces a new `Array`
-/// - `B @ A` which consumes `B`, updates it with the result, and returns it
+/// - `B @ B` which consumes both arrays, updates one of them with the result
+///   or creates a new array with the result, and returns it
 /// - `B @ &A` which consumes `B`, updates it with the result, and returns it
 /// - `C @= &A` which performs an arithmetic operation in place
 ///

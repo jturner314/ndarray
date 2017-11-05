@@ -78,16 +78,18 @@ fn broadcast_with<Do: Dimension>(
         this_stride.iter().rev().chain(iter::repeat(&0)),
         other_shape.iter().rev().chain(iter::repeat(&1)),
     ).take(new_ndim);
-    let zipped_out = new_shape.slice_mut().iter_mut().zip(new_stride.slice_mut());
-    for ((&this_len, &this_st, &other_len), (new_len, new_st)) in zipped_in.zip(zipped_out) {
-        if this_len == other_len || other_len == 1 {
-            *new_len = this_len;
-            *new_st = this_st;
-        } else if allow_alias && this_len == 1 {
-            *new_len = other_len;
-            *new_st = 0;
-        } else {
-            return None;
+    {
+        let zipped_out = new_shape.slice_mut().iter_mut().zip(new_stride.slice_mut());
+        for ((&this_len, &this_st, &other_len), (new_len, new_st)) in zipped_in.zip(zipped_out) {
+            if this_len == other_len || other_len == 1 {
+                *new_len = this_len;
+                *new_st = this_st;
+            } else if allow_alias && this_len == 1 {
+                *new_len = other_len;
+                *new_st = 0;
+            } else {
+                return None;
+            }
         }
     }
     Some((new_shape, new_stride))
@@ -1387,6 +1389,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
 
     pub(crate) fn broadcast_with_mut<E>(&mut self, dim: E) -> Option<ArrayViewMut<A, <D as BroadcastShapes<E::Dim>>::Output>>
     where
+        S: DataMut,
         D: BroadcastShapes<E::Dim>,
         E: IntoDimension,
     {
@@ -1401,7 +1404,36 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             Some(r) => r,
             None => return None,
         };
-        unsafe { Some(ArrayViewMut::new_(self.ptr, new_shape, new_stride)) }
+        self.ensure_unique();
+        Some(unsafe {
+            ArrayViewMut::new_(self.ptr, new_shape, new_stride)
+        })
+    }
+
+    pub(crate) fn broadcast_with_move<E>(mut self, dim: E) -> Result<ArrayBase<S, <D as BroadcastShapes<E::Dim>>::Output>, Self>
+    where
+        S: DataMut,
+        D: BroadcastShapes<E::Dim>,
+        E: IntoDimension,
+    {
+        let other_shape = dim.into_dimension();
+        // Note: Indices must be non-aliasing because we return a mutable array.
+        let (new_shape, new_stride) = match broadcast_with(
+            self.dim.slice(),
+            self.strides.slice(),
+            other_shape.slice(),
+            false,
+        ) {
+            Some(r) => r,
+            None => return Err(self),
+        };
+        self.ensure_unique();
+        Ok(ArrayBase {
+            data: self.data,
+            ptr: self.ptr,
+            dim: new_shape,
+            strides: new_stride,
+        })
     }
 
     /// Swap axes `ax` and `bx`.
