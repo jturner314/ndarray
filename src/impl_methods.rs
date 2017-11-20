@@ -1428,7 +1428,7 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             Some(r) => r,
             None => return Err(self),
         };
-        Ok(S::into_unshared(ArrayBase {
+        Ok(S::into_owned(ArrayBase {
             data: self.data,
             ptr: self.ptr,
             dim: new_shape,
