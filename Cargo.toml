@@ -27,6 +27,7 @@ bench = false
 test = true
 
 [dependencies]
+num-integer = "0.1.39"
 num-traits = "0.2"
 num-complex = "0.2"
 rustc-serialize = { version = "0.3.20", optional = true }
