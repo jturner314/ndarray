@@ -105,6 +105,7 @@ pub use dimension::NdIndex;
 pub use dimension::IxDynImpl;
 pub use indexes::{indices, indices_of};
 pub use error::{ShapeError, ErrorKind};
+pub use reshape::{ArrayViewTemp, ArrayViewMutTemp, ArrayViewMutTempRepr, Order};
 pub use slice::{Slice, SliceInfo, SliceNextDim, SliceOrIndex};
 
 use iterators::Baseiter;
@@ -152,6 +153,7 @@ mod linalg_traits;
 mod linspace;
 mod numeric_util;
 mod error;
+mod reshape;
 mod shape_builder;
 mod stacking;
 mod zip;
