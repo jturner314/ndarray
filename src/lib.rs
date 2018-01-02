@@ -161,13 +161,11 @@ pub use data_traits::{
     DataClone,
 };
 
-mod dimension;
-
 mod free_functions;
 pub use free_functions::*;
 pub use iterators::iter;
 
-mod slice;
+#[macro_use] mod slice;
 mod layout;
 mod indexes;
 mod iterators;
@@ -179,6 +177,8 @@ mod shape_builder;
 mod stacking;
 #[macro_use]
 mod zip;
+
+mod dimension;
 
 pub use zip::{
     Zip,
