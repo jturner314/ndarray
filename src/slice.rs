@@ -533,17 +533,33 @@ impl<D1: Dimension> SliceNextDim<D1, D1::Larger> for RangeFull {
 /// ```
 #[macro_export]
 macro_rules! s(
+    (@define_safe_wrapper) => {
+        /// This function makes it possible to apply the
+        /// `#[allow(unsafe_code)]` attribute.
+        ///
+        /// It's necessary for code using `#![deny(unsafe_code)]` to be
+        /// able to use the `s![]` macro.
+        #[inline(always)]
+        #[allow(unsafe_code)]
+        fn sliceinfo_new_unchecked<T, D: $crate::Dimension>(
+            indices: T,
+            out_dim: ::std::marker::PhantomData<D>
+        ) -> $crate::SliceInfo<T, D> {
+            unsafe {
+                $crate::SliceInfo::new_unchecked(indices, out_dim)
+            }
+        }
+    };
     // convert a..b;c into @convert(a..b, c), final item
     (@parse $dim:expr, [$($stack:tt)*] $r:expr;$s:expr) => {
         match $r {
             r => {
                 let out_dim = $crate::SliceNextDim::next_dim(&r, $dim);
-                unsafe {
-                    $crate::SliceInfo::new_unchecked(
-                        [$($stack)* s!(@convert r, $s)],
-                        out_dim,
-                    )
-                }
+                s![@define_safe_wrapper];
+                sliceinfo_new_unchecked(
+                    [$($stack)* s!(@convert r, $s)],
+                    out_dim,
+                )
             }
         }
     };
@@ -552,12 +568,11 @@ macro_rules! s(
         match $r {
             r => {
                 let out_dim = $crate::SliceNextDim::next_dim(&r, $dim);
-                unsafe {
-                    $crate::SliceInfo::new_unchecked(
-                        [$($stack)* s!(@convert r)],
-                        out_dim,
-                    )
-                }
+                s![@define_safe_wrapper];
+                sliceinfo_new_unchecked(
+                    [$($stack)* s!(@convert r)],
+                    out_dim,
+                )
             }
         }
     };
