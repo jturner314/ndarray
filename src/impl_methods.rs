@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use std::cmp;
+use std::marker::PhantomData;
 use std::ptr as std_ptr;
 use std::slice;
 
@@ -1058,6 +1059,31 @@ impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
     {
         self.ensure_unique(); // for RcArray
         self.ptr
+    }
+
+    /// Return a pointer array.
+    #[inline(always)]
+    pub fn as_array_ptr(&self) -> ArrayPtr<A, D> {
+        ArrayBase {
+            data: PhantomData,
+            ptr: self.ptr,
+            dim: self.dim.clone(),
+            strides: self.strides.clone(),
+        }
+    }
+
+    /// Return a mutable pointer array.
+    #[inline(always)]
+    pub fn as_array_mut_ptr(&mut self) -> ArrayMutPtr<A, D>
+        where S: DataMut
+    {
+        self.ensure_unique(); // for RcArray
+        ArrayBase {
+            data: PhantomData,
+            ptr: self.ptr,
+            dim: self.dim.clone(),
+            strides: self.strides.clone(),
+        }
     }
 }
 

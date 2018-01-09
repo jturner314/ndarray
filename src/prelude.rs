@@ -23,6 +23,8 @@ pub use {
     ArrayBase,
     Array,
     RcArray,
+    ArrayPtr,
+    ArrayMutPtr,
     ArrayView,
     ArrayViewMut,
 };

@@ -718,6 +718,40 @@ pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
 /// [ab]: struct.ArrayBase.html
 pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
 
+/// A read-only array view pointer.
+///
+/// This is similar to `ArrayView` but does not carry any lifetime or ownership
+/// information, and its data cannot be read without an unsafe conversion into
+/// an `ArrayView`.
+///
+/// The `ArrayPtr<A, D>` is parameterized by `A` for the element type and
+/// `D` for the dimensionality.
+///
+/// Array view pointers have all the methods of an array (see
+/// [`ArrayBase`][ab]).
+///
+/// See also [`ArrayMutPtr`](type.ArrayMutPtr.html).
+///
+/// [ab]: struct.ArrayBase.html
+pub type ArrayPtr<A, D> = ArrayBase<PhantomData<*const A>, D>;
+
+/// A mutable array view pointer.
+///
+/// This is similar to `ArrayViewMut` but does not carry any lifetime or
+/// ownership information, and its data cannot be read/written without an
+/// unsafe conversion into an `ArrayViewMut`.
+///
+/// The `ArrayMutPtr<A, D>` is parameterized by `A` for the element type and
+/// `D` for the dimensionality.
+///
+/// Array view pointers have all the methods of an array (see
+/// [`ArrayBase`][ab]).
+///
+/// See also [`ArrayPtr`](type.ArrayPtr.html).
+///
+/// [ab]: struct.ArrayBase.html
+pub type ArrayMutPtr<A, D> = ArrayBase<PhantomData<*mut A>, D>;
+
 /// Array's representation.
 ///
 /// *Don’t use this type directly—use the type alias
@@ -868,6 +902,9 @@ pub use impl_ops::ScalarOperand;
 
 // Array view methods
 mod impl_views;
+
+// Array ptr methods
+mod impl_ptrs;
 
 /// A contiguous array shape of n dimensions.
 ///

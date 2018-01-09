@@ -8,6 +8,7 @@
 
 //! The data (inner representation) traits for ndarray
 
+use std::marker::PhantomData;
 use std::mem::{self, size_of};
 use std::rc::Rc;
 
@@ -76,6 +77,22 @@ pub unsafe trait DataClone : Data {
         *self = data;
         ptr
     }
+}
+
+unsafe impl<A> DataRaw for PhantomData<*const A> {
+    type Elem = A;
+    fn _data_slice(&self) -> Option<&[A]> {
+        None
+    }
+    private_impl!{}
+}
+
+unsafe impl<A> DataRaw for PhantomData<*mut A> {
+    type Elem = A;
+    fn _data_slice(&self) -> Option<&[A]> {
+        None
+    }
+    private_impl!{}
 }
 
 unsafe impl<A> DataRaw for OwnedRcRepr<A> {
