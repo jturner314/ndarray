@@ -133,6 +133,7 @@ mod data_traits;
 pub use aliases::*;
 
 pub use data_traits::{
+    DataRaw,
     Data,
     DataMut,
     DataOwned,
@@ -172,6 +173,7 @@ mod imp_prelude {
     pub use prelude::*;
     pub use {
         RemoveAxis,
+        DataRaw,
         Data,
         DataMut,
         DataOwned,
@@ -634,7 +636,7 @@ pub type Ixs = isize;
 /// ```
 ///
 pub struct ArrayBase<S, D>
-    where S: Data
+    where S: DataRaw
 {
     /// Rc data when used as view, Uniquely held data when being mutated
     data: S,

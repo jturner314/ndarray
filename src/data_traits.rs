@@ -21,17 +21,24 @@ use {
 
 /// Array representation trait.
 ///
-/// ***Note:*** `Data` is not an extension interface at this point.
+/// ***Note:*** `DataRaw` is not an extension interface at this point.
 /// Traits in Rust can serve many different roles. This trait is public because
 /// it is used as a bound on public methods.
-pub unsafe trait Data : Sized {
+pub unsafe trait DataRaw : Sized {
     /// The array element type.
     type Elem;
     #[doc(hidden)]
     // This method is only used for debugging
-    fn _data_slice(&self) -> &[Self::Elem];
+    fn _data_slice(&self) -> Option<&[Self::Elem]>;
     private_decl!{}
 }
+
+/// Array representation trait.
+///
+/// For an array with elements that can be read with safe code.
+///
+/// ***Internal trait, see `DataRaw`.***
+pub unsafe trait Data : DataRaw {}
 
 /// Array representation trait.
 ///
@@ -71,13 +78,15 @@ pub unsafe trait DataClone : Data {
     }
 }
 
-unsafe impl<A> Data for OwnedRcRepr<A> {
+unsafe impl<A> DataRaw for OwnedRcRepr<A> {
     type Elem = A;
-    fn _data_slice(&self) -> &[A] {
-        &self.0
+    fn _data_slice(&self) -> Option<&[A]> {
+        Some(&self.0)
     }
     private_impl!{}
 }
+
+unsafe impl<A> Data for OwnedRcRepr<A> {}
 
 // NOTE: Copy on write
 unsafe impl<A> DataMut for OwnedRcRepr<A>
@@ -124,13 +133,15 @@ unsafe impl<A> DataClone for OwnedRcRepr<A> {
     }
 }
 
-unsafe impl<A> Data for OwnedRepr<A> {
+unsafe impl<A> DataRaw for OwnedRepr<A> {
     type Elem = A;
-    fn _data_slice(&self) -> &[A] {
-        &self.0
+    fn _data_slice(&self) -> Option<&[A]> {
+        Some(&self.0)
     }
     private_impl!{}
 }
+
+unsafe impl<A> Data for OwnedRepr<A> {}
 
 unsafe impl<A> DataMut for OwnedRepr<A> { }
 
@@ -160,13 +171,15 @@ unsafe impl<A> DataClone for OwnedRepr<A>
     }
 }
 
-unsafe impl<'a, A> Data for ViewRepr<&'a A> {
+unsafe impl<'a, A> DataRaw for ViewRepr<&'a A> {
     type Elem = A;
-    fn _data_slice(&self) -> &[A] {
-        &[]
+    fn _data_slice(&self) -> Option<&[A]> {
+        None
     }
     private_impl!{}
 }
+
+unsafe impl<'a, A> Data for ViewRepr<&'a A> {}
 
 unsafe impl<'a, A> DataClone for ViewRepr<&'a A> {
     unsafe fn clone_with_ptr(&self, ptr: *mut Self::Elem) -> (Self, *mut Self::Elem) {
@@ -174,13 +187,15 @@ unsafe impl<'a, A> DataClone for ViewRepr<&'a A> {
     }
 }
 
-unsafe impl<'a, A> Data for ViewRepr<&'a mut A> {
+unsafe impl<'a, A> DataRaw for ViewRepr<&'a mut A> {
     type Elem = A;
-    fn _data_slice(&self) -> &[A] {
-        &[]
+    fn _data_slice(&self) -> Option<&[A]> {
+        None
     }
     private_impl!{}
 }
+
+unsafe impl<'a, A> Data for ViewRepr<&'a mut A> {}
 
 unsafe impl<'a, A> DataMut for ViewRepr<&'a mut A> { }
 

@@ -53,7 +53,7 @@ use iter::{
 use stacking::stack;
 
 /// # Methods For All Array Types
-impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
 {
     /// Return the total number of elements in the array.
     pub fn len(&self) -> usize {
@@ -105,7 +105,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             slice::from_raw_parts(s.as_ptr() as *const _, s.len())
         }
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return a read-only view of the array
     pub fn view(&self) -> ArrayView<A, D> {
         debug_assert!(self.pointer_is_inbounds());
@@ -252,7 +255,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     {
         self.view_mut().slice_move(info)
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Slice the array, possibly changing the number of dimensions.
     ///
     /// See [*Slicing*](#slicing) for full documentation.
@@ -325,7 +331,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
                 }
             });
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return a view of the array, sliced along the specified axis.
     ///
     /// **Panics** if an index is out of bounds or step size is zero.<br>
@@ -348,7 +357,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         view_mut.slice_axis_inplace(axis, indices);
         view_mut
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Slice the array in place along the specified axis.
     ///
     /// **Panics** if an index is out of bounds or step size is zero.<br>
@@ -366,9 +378,11 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         }
         debug_assert!(self.pointer_is_inbounds());
     }
+}
 
 
-
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return a reference to the element at `index`, or return `None`
     /// if the index is out of bounds.
     ///
@@ -557,7 +571,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     {
         self.view_mut().into_subview(axis, index)
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Collapse dimension `axis` into length one,
     /// and select the subview of `index` along that axis.
     ///
@@ -577,7 +594,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         self.subview_inplace(axis, index);
         self.remove_axis(axis)
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Along `axis`, select arbitrary subviews corresponding to `indices`
     /// and and copy them into a new array.
     ///
@@ -927,7 +947,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     {
         windows(self.view(), window_size)
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     // Return (length, stride) for diagonal
     fn diag_params(&self) -> (Ix, Ixs) {
         /* empty shape has len 1 */
@@ -937,7 +960,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
                          .fold(0, |sum, s| sum + s);
         (len, stride)
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return an view of the diagonal elements of the array.
     ///
     /// The diagonal is simply the sequence indexed by *(0, 0, .., 0)*,
@@ -952,7 +978,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     {
         self.view_mut().into_diag()
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Return the diagonal as a one-dimensional array.
     pub fn into_diag(self) -> ArrayBase<S, Ix1> {
         let (len, stride) = self.diag_params();
@@ -963,7 +992,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             strides: Ix1(stride as Ix),
         }
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Make the array unshared.
     ///
     /// This method is mostly only useful with unsafe code.
@@ -974,7 +1006,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         S::ensure_unique(self);
         debug_assert!(self.pointer_is_inbounds());
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Return `true` if the array data is laid out in contiguous “C order” in
     /// memory (where the last index is the most rapidly varying).
     ///
@@ -1024,7 +1059,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         self.ensure_unique(); // for RcArray
         self.ptr
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return the array’s data as a slice, if it is contiguous and in standard order.
     /// Return `None` otherwise.
     ///
@@ -1177,7 +1215,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
             }
         }
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Convert any array or array view to a dynamic dimensional array or
     /// array view (respectively).
     ///
@@ -1224,7 +1265,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         }
         Err(ShapeError::from_kind(ErrorKind::IncompatibleShape))
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Act like a larger size and/or shape array by *broadcasting*
     /// into a larger shape, if possible.
     ///
@@ -1307,7 +1351,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         };
         unsafe { Some(ArrayView::new_(self.ptr, dim, broadcast_strides)) }
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Swap axes `ax` and `bx`.
     ///
     /// This does not move any data, it just adjusts the array’s dimensions
@@ -1338,7 +1385,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         self.strides.slice_mut().reverse();
         self
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Return a transposed view of the array.
     ///
     /// This is a shorthand for `self.view().reversed_axes()`.
@@ -1347,7 +1397,10 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     pub fn t(&self) -> ArrayView<A, D> {
         self.view().reversed_axes()
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: DataRaw<Elem=A>, D: Dimension
+{
     /// Return an iterator over the length and stride of each axis.
     pub fn axes(&self) -> Axes<D> {
         axes_of(&self.dim, &self.strides)
@@ -1445,18 +1498,24 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
     }
 
     fn pointer_is_inbounds(&self) -> bool {
-        let slc = self.data._data_slice();
-        if slc.is_empty() {
-            // special case for data-less views
-            return true;
+        match self.data._data_slice() {
+            None => {
+                // special case for data-less views
+                true
+            }
+            Some(slc) => {
+                let ptr = slc.as_ptr() as *mut A;
+                let end = unsafe {
+                    ptr.offset(slc.len() as isize)
+                };
+                self.ptr >= ptr && self.ptr <= end
+            }
         }
-        let ptr = slc.as_ptr() as *mut A;
-        let end = unsafe {
-            ptr.offset(slc.len() as isize)
-        };
-        self.ptr >= ptr && self.ptr <= end
     }
+}
 
+impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
+{
     /// Perform an elementwise assigment to `self` from `rhs`.
     ///
     /// If their shapes disagree, `rhs` is broadcast to the shape of `self`.
