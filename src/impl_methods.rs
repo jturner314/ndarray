@@ -1381,6 +1381,72 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         self
     }
 
+    pub fn permuted_axes_impl_inplace<T>(mut self, axes: T) -> ArrayBase<S, D>
+    where
+        T: IntoDimension<Dim = D>,
+    {
+        let mut axes = axes.into_dimension();
+        // Ensure that each axis is used exactly once.
+        let mut usage_counts = D::zero_index_with_ndim(self.ndim());
+        for axis in axes.slice() {
+            usage_counts[*axis] += 1;
+        }
+        for count in usage_counts.slice() {
+            assert_eq!(*count, 1, "each axis must be listed exactly once");
+        }
+        // Update the shape and strides.
+        {
+            let dim = self.dim.slice_mut();
+            let strides = self.strides.slice_mut();
+            let perm = axes.slice_mut();
+            for i in 0..perm.len() {
+                let mut current = i;
+                while i != perm[current] {
+                    let next = perm[current];
+                    dim.swap(next, current);
+                    strides.swap(next, current);
+                    perm[current] = current;
+                    current = next;
+                }
+                perm[current] = current;
+            }
+        }
+        self
+    }
+
+    pub fn permuted_axes_impl_inplace_unchecked<T>(mut self, axes: T) -> ArrayBase<S, D>
+    where
+        T: IntoDimension<Dim = D>,
+    {
+        let mut axes = axes.into_dimension();
+        // Ensure that each axis is used exactly once.
+        let mut usage_counts = D::zero_index_with_ndim(self.ndim());
+        for axis in axes.slice() {
+            usage_counts[*axis] += 1;
+        }
+        for count in usage_counts.slice() {
+            assert_eq!(*count, 1, "each axis must be listed exactly once");
+        }
+        // Update the shape and strides.
+        {
+            let dim = self.dim.slice_mut();
+            let strides = self.strides.slice_mut();
+            let perm = axes.slice_mut();
+            for i in 0..perm.len() {
+                let mut current = i;
+                while i != *unsafe { perm.get_unchecked(current) } {
+                    let next = unsafe { *perm.get_unchecked(current) };
+                    dim.swap(next, current);
+                    strides.swap(next, current);
+                    *unsafe { perm.get_unchecked_mut(current) } = current;
+                    current = next;
+                }
+                *unsafe { perm.get_unchecked_mut(current) } = current;
+            }
+        }
+        self
+    }
+
     /// Transpose the array by reversing axes.
     ///
     /// Transposition reverses the order of the axes (dimensions and strides)
