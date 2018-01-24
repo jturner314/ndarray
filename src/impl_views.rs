@@ -533,5 +533,108 @@ impl<'a, A, D> ArrayViewMut<'a, A, D>
     {
         iterators::new_outer_iter_mut(self)
     }
-}
 
+    /// Returns a new `ArrayView` referencing the same data.
+    ///
+    /// This is unsafe because it produces a mutable borrow and an immutable
+    /// borrow of the same data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ndarray::prelude::*;
+    ///
+    /// let mut arr = arr1(&[0, 1, 2]);
+    /// let mut v1 = arr.view_mut();
+    /// let v2 = unsafe { v1.aliasing_view() };
+    /// v1[0] = 5;
+    /// assert_eq!(v2[0], 5);
+    /// ```
+    ///
+    /// Note that the underlying array is still mutably borrowed, so this won't
+    /// compile:
+    ///
+    /// ```compile_fail
+    /// // cannot borrow `arr` as immutable because it is also borrowed as mutable
+    ///
+    /// use ndarray::prelude::*;
+    ///
+    /// let mut arr = arr1(&[0, 1, 2]);
+    /// let v = unsafe { arr.view_mut().aliasing_view() };
+    /// //               --- mutable borrow occurs here
+    /// assert_eq!(arr[0], 0);
+    /// //         ^^^ immutable borrow occurs here
+    /// ```
+    ///
+    /// For the same reason, the view cannot outlive the data in `arr`, so this
+    /// won't compile:
+    ///
+    /// ```compile_fail
+    /// // `arr` does not live long enough
+    ///
+    /// use ndarray::prelude::*;
+    ///
+    /// let v = {
+    ///     let mut arr = arr1(&[0, 1, 2]);
+    ///     unsafe { arr.view_mut().aliasing_view() }
+    ///     //       --- borrow occurs here
+    /// };
+    /// // `arr` dropped here while still borrowed
+    /// ```
+    #[doc(hidden)]
+    pub unsafe fn aliasing_view(&self) -> ArrayView<'a, A, D> {
+        ArrayView::new_(self.ptr, self.dim.clone(), self.strides.clone())
+    }
+
+    /// Returns a new `ArrayViewMut` referencing the same data.
+    ///
+    /// This is unsafe because it produces two mutable borrows of the same
+    /// data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ndarray::prelude::*;
+    ///
+    /// let mut arr = arr1(&[0, 1, 2]);
+    /// let mut v1 = arr.view_mut();
+    /// let v2 = unsafe { v1.aliasing_view_mut() };
+    /// v1[0] = 5;
+    /// assert_eq!(v2[0], 5);
+    /// ```
+    ///
+    /// Note that the underlying array is still mutably borrowed, so this won't
+    /// compile:
+    ///
+    /// ```compile_fail
+    /// // cannot borrow `arr` as immutable because it is also borrowed as mutable
+    ///
+    /// use ndarray::prelude::*;
+    ///
+    /// let mut arr = arr1(&[0, 1, 2]);
+    /// let v = unsafe { arr.view_mut().aliasing_view_mut() };
+    /// //               --- mutable borrow occurs here
+    /// assert_eq!(arr[0], 0);
+    /// //         ^^^ immutable borrow occurs here
+    /// ```
+    ///
+    /// For the same reason, the view cannot outlive the data in `arr`, so this
+    /// won't compile:
+    ///
+    /// ```compile_fail
+    /// // `arr` does not live long enough
+    ///
+    /// use ndarray::prelude::*;
+    ///
+    /// let v = {
+    ///     let mut arr = arr1(&[0, 1, 2]);
+    ///     unsafe { arr.view_mut().aliasing_view_mut() }
+    ///     //       --- borrow occurs here
+    /// };
+    /// // `arr` dropped here while still borrowed
+    /// ```
+    #[doc(hidden)]
+    pub unsafe fn aliasing_view_mut(&self) -> ArrayViewMut<'a, A, D> {
+        ArrayViewMut::new_(self.ptr, self.dim.clone(), self.strides.clone())
+    }
+}
