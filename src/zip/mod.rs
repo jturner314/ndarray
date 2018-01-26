@@ -194,7 +194,7 @@ impl<T> Offset for *mut T {
 
 trait ZippableTuple : Sized {
     type Item;
-    type Ptr: OffsetTuple<Args=Self::Stride> + Copy;
+    type Ptr: Offset<Stride=Self::Stride>;
     type Dim: Dimension;
     type Stride: Copy;
     fn as_ptr(&self) -> Self::Ptr;
@@ -593,45 +593,18 @@ impl<P, D> Zip<P, D>
     }
 }
 
-/*
-trait Offset : Copy {
-    unsafe fn offset(self, off: isize) -> Self;
-    unsafe fn stride_offset(self, index: usize, stride: isize) -> Self {
-        self.offset(index as isize * stride)
-    }
-}
-
-impl<T> Offset for *mut T {
-    unsafe fn offset(self, off: isize) -> Self {
-        self.offset(off)
-    }
-}
-*/
-
-
-trait OffsetTuple {
-    type Args;
-    unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self;
-}
-
-impl<T> OffsetTuple for *mut T {
-    type Args = isize;
-    unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self {
-        self.offset(index as isize * stride)
-    }
-}
-
 macro_rules! offset_impl {
     ($([$($param:ident)*][ $($q:ident)*],)+) => {
         $(
         #[allow(non_snake_case)]
-        impl<$($param: Offset),*> OffsetTuple for ($($param, )*) {
-            type Args = ($($param::Stride,)*);
-            unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self {
+        impl<$($param: Offset),*> Offset for ($($param, )*) {
+            type Stride = ($($param::Stride,)*);
+            unsafe fn stride_offset(self, stride: Self::Stride, index: usize) -> Self {
                 let ($($param, )*) = self;
                 let ($($q, )*) = stride;
                 ($(Offset::stride_offset($param, $q, index),)*)
             }
+            private_impl!{}
         }
         )+
     }
