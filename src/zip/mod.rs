@@ -619,6 +619,40 @@ offset_impl!{
     [A B C D E F][ a b c d e f],
 }
 
+impl<T> Zippable for T
+where
+    T: NdProducer,
+{
+    type Item = <Self as NdProducer>::Item;
+    type Ptr = <Self as NdProducer>::Ptr;
+    type Dim = <Self as NdProducer>::Dim;
+    type Stride = <Self as NdProducer>::Stride;
+    #[inline(always)]
+    fn as_ptr(&self) -> Self::Ptr {
+        NdProducer::as_ptr(self)
+    }
+    #[inline(always)]
+    unsafe fn as_ref(&self, ptr: Self::Ptr) -> Self::Item {
+        NdProducer::as_ref(self, ptr)
+    }
+    #[inline(always)]
+    unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr {
+        NdProducer::uget_ptr(self, i)
+    }
+    #[inline(always)]
+    fn stride_of(&self, axis: Axis) -> Self::Stride {
+        NdProducer::stride_of(self, axis)
+    }
+    #[inline(always)]
+    fn contiguous_stride(&self) -> Self::Stride {
+        NdProducer::contiguous_stride(self)
+    }
+    #[inline(always)]
+    fn split_at(self, axis: Axis, index: usize) -> (Self, Self) {
+        NdProducer::split_at(self, axis, index)
+    }
+}
+
 macro_rules! zip_impl_tuple {
     ($([$($p:ident)*][ $($q:ident)*],)+) => {
         $(
