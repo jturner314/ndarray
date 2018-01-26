@@ -200,7 +200,7 @@ trait Zippable : Sized {
     fn as_ptr(&self) -> Self::Ptr;
     unsafe fn as_ref(&self, Self::Ptr) -> Self::Item;
     unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr;
-    fn stride_of(&self, index: usize) -> Self::Stride;
+    fn stride_of(&self, axis: Axis) -> Self::Stride;
     fn contiguous_stride(&self) -> Self::Stride;
     fn split_at(self, axis: Axis, index: usize) -> (Self, Self);
 }
@@ -575,7 +575,7 @@ impl<P, D> Zip<P, D>
         let inner_len = self.dimension[unroll_axis];
         self.dimension[unroll_axis] = 1;
         let mut index_ = self.dimension.first_index();
-        let inner_strides = self.parts.stride_of(unroll_axis);
+        let inner_strides = self.parts.stride_of(Axis(unroll_axis));
         while let Some(index) = index_ {
             // Let's “unroll” the loop over the innermost axis
             unsafe {
@@ -629,9 +629,9 @@ macro_rules! zip_impl_tuple {
             type Dim = Dim;
             type Stride = ($($p::Stride,)* );
 
-            fn stride_of(&self, index: usize) -> Self::Stride {
+            fn stride_of(&self, axis: Axis) -> Self::Stride {
                 let ($(ref $p,)*) = *self;
-                ($($p.stride_of(Axis(index)), )*)
+                ($($p.stride_of(axis), )*)
             }
 
             fn contiguous_stride(&self) -> Self::Stride {
