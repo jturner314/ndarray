@@ -157,6 +157,7 @@ mod error;
 mod shape_builder;
 mod stacking;
 mod zip;
+pub mod expr;
 
 pub use zip::{
     Zip,

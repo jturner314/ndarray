@@ -192,7 +192,8 @@ impl<T> Offset for *mut T {
     private_impl!{}
 }
 
-trait Zippable : Sized {
+#[doc(hidden)]
+pub trait Zippable : Sized {
     type Item;
     type Ptr: Offset<Stride=Self::Stride>;
     type Dim: Dimension;
