@@ -21,7 +21,7 @@ fn broadcast<D: Dimension>(shape1: &[Ix], shape2: &[Ix]) -> Result<D, ShapeError
             .zip(shape1.iter().rev())
     };
     let mut out = D::zero_index_with_ndim(cmp::max(shape1.len(), shape2.len()));
-    for ((&len1, &len2), elem) in zipped.zip(out.slice_mut()) {
+    for ((&len1, &len2), elem) in zipped.zip(out.slice_mut().iter_mut().rev()) {
         if len1 == len2 {
             *elem = len1;
         } else if len1 == 1 {
