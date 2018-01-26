@@ -657,7 +657,7 @@ macro_rules! zip_impl_tuple {
     ($([$($p:ident)*][ $($q:ident)*],)+) => {
         $(
         #[allow(non_snake_case)]
-        impl<Dim: Dimension, $($p: NdProducer<Dim=Dim>),*> Zippable for ($($p, )*) {
+        impl<Dim: Dimension, $($p: Zippable<Dim=Dim>),*> Zippable for ($($p, )*) {
             type Item = ($($p::Item, )*);
             type Ptr = ($($p::Ptr, )*);
             type Dim = Dim;
