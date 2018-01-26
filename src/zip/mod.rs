@@ -192,7 +192,7 @@ impl<T> Offset for *mut T {
     private_impl!{}
 }
 
-trait ZippableTuple : Sized {
+trait Zippable : Sized {
     type Item;
     type Ptr: Offset<Stride=Self::Stride>;
     type Dim: Dimension;
@@ -538,7 +538,7 @@ impl<P, D> Zip<P, D>
 {
     fn apply_core<F, Acc>(&mut self, acc: Acc, function: F) -> FoldWhile<Acc>
         where F: FnMut(Acc, P::Item) -> FoldWhile<Acc>,
-              P: ZippableTuple<Dim=D>,
+              P: Zippable<Dim=D>,
     {
         if self.layout.is(CORDER | FORDER) {
             self.apply_core_contiguous(acc, function)
@@ -548,7 +548,7 @@ impl<P, D> Zip<P, D>
     }
     fn apply_core_contiguous<F, Acc>(&mut self, mut acc: Acc, mut function: F) -> FoldWhile<Acc>
         where F: FnMut(Acc, P::Item) -> FoldWhile<Acc>,
-              P: ZippableTuple<Dim=D>,
+              P: Zippable<Dim=D>,
     {
         debug_assert!(self.layout.is(CORDER | FORDER));
         let size = self.dimension.size();
@@ -565,7 +565,7 @@ impl<P, D> Zip<P, D>
 
     fn apply_core_strided<F, Acc>(&mut self, mut acc: Acc, mut function: F) -> FoldWhile<Acc>
         where F: FnMut(Acc, P::Item) -> FoldWhile<Acc>,
-              P: ZippableTuple<Dim=D>,
+              P: Zippable<Dim=D>,
     {
         let n = self.dimension.ndim();
         if n == 0 {
@@ -619,11 +619,11 @@ offset_impl!{
     [A B C D E F][ a b c d e f],
 }
 
-macro_rules! zipt_impl {
+macro_rules! zip_impl_tuple {
     ($([$($p:ident)*][ $($q:ident)*],)+) => {
         $(
         #[allow(non_snake_case)]
-        impl<Dim: Dimension, $($p: NdProducer<Dim=Dim>),*> ZippableTuple for ($($p, )*) {
+        impl<Dim: Dimension, $($p: NdProducer<Dim=Dim>),*> Zippable for ($($p, )*) {
             type Item = ($($p::Item, )*);
             type Ptr = ($($p::Ptr, )*);
             type Dim = Dim;
@@ -669,7 +669,7 @@ macro_rules! zipt_impl {
     }
 }
 
-zipt_impl!{
+zip_impl_tuple!{
     [A ][ a],
     [A B][ a b],
     [A B C][ a b c],
