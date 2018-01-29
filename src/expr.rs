@@ -80,7 +80,6 @@
 use NdProducer;
 use imp_prelude::*;
 use layout::{Layout, LayoutPriv, CORDER, FORDER};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub};
 use zip::{Offset, Zippable};
 
 /// An expression of arrays.
@@ -129,11 +128,11 @@ pub trait Expression: Zippable {
     }
 
     /// Creates an expression that calls `f` by value on each element.
-    fn map_into<F, O>(self, f: F) -> UnaryOpExpr<F, Self, O>
+    fn map_into<F, O>(self, f: F) -> UnaryFnExpr<F, Self, O>
     where
         F: Fn(Self::OutElem) -> O,
     {
-        UnaryOpExpr::new(f, self)
+        UnaryFnExpr::new(f, self)
     }
 }
 
@@ -201,7 +200,7 @@ where
     fn as_expr(&self) -> ArrayViewExpr<A, D>;
 
     /// Creates an expression that calls `f` by value on each element.
-    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryOpExpr<F, ArrayViewExpr<'a, A, D>, O>
+    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>, O>
     where
         F: Fn(&'a A) -> O,
         A: Copy;
@@ -216,7 +215,7 @@ where
         ArrayViewExpr::new(self.view())
     }
 
-    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryOpExpr<F, ArrayViewExpr<'a, A, D>, O>
+    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>, O>
     where
         F: Fn(&'a A) -> O,
         A: Copy,
@@ -334,27 +333,27 @@ where
 
 /// An expression with a single argument.
 #[derive(Clone, Debug)]
-pub struct UnaryOpExpr<F, E, O>
+pub struct UnaryFnExpr<F, E, O>
 where
     F: Fn(E::OutElem) -> O,
     E: Expression,
 {
-    oper: F,
+    f: F,
     inner: E,
 }
 
-impl<F, E, O> UnaryOpExpr<F, E, O>
+impl<F, E, O> UnaryFnExpr<F, E, O>
 where
     F: Fn(E::OutElem) -> O,
     E: Expression,
 {
-    /// Returns a new expression applying `oper` to `inner`.
-    pub fn new(oper: F, inner: E) -> Self {
-        UnaryOpExpr { oper, inner }
+    /// Returns a new expression applying `f` to `inner`.
+    pub fn new(f: F, inner: E) -> Self {
+        UnaryFnExpr { f, inner }
     }
 }
 
-impl<F, E, O> Expression for UnaryOpExpr<F, E, O>
+impl<F, E, O> Expression for UnaryFnExpr<F, E, O>
 where
     F: Fn(E::OutElem) -> O,
     E: Expression,
@@ -388,19 +387,19 @@ where
     }
 
     fn broadcast_move(self, shape: Self::Dim) -> Option<Self> {
-        let UnaryOpExpr { oper, inner, .. } = self;
+        let UnaryFnExpr { f, inner, .. } = self;
         inner
             .broadcast_move(shape)
-            .map(|new_inner| UnaryOpExpr::new(oper, new_inner))
+            .map(|new_inner| UnaryFnExpr::new(f, new_inner))
     }
 
     #[inline]
     fn eval_item(&self, item: E::Item) -> O {
-        (self.oper)(self.inner.eval_item(item))
+        (self.f)(self.inner.eval_item(item))
     }
 }
 
-impl<F, E, O> Zippable for UnaryOpExpr<F, E, O>
+impl<F, E, O> Zippable for UnaryFnExpr<F, E, O>
 where
     F: Fn(E::OutElem) -> O,
     E: Expression,
@@ -434,12 +433,12 @@ where
         unimplemented!()
         // let inner_split = self.inner.split_at(axis, index);
         // (
-        //     UnaryOpExpr {
-        //         oper: self.oper.clone(),
+        //     UnaryFnExpr {
+        //         f: self.f.clone(),
         //         inner: inner_split.0,
         //     },
-        //     UnaryOpExpr {
-        //         oper: self.oper,
+        //     UnaryFnExpr {
+        //         f: self.f,
         //         inner: inner_split.1,
         //     },
         // )
@@ -480,38 +479,38 @@ fn broadcast<D: Dimension>(shape1: &[usize], shape2: &[usize]) -> Option<D> {
 
 /// An expression with two arguments.
 #[derive(Clone, Debug)]
-pub struct BinaryOpExpr<F, E1, E2, O>
+pub struct BinaryFnExpr<F, E1, E2, O>
 where
     F: Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
     E2: Expression<Dim = E1::Dim>,
 {
-    oper: F,
+    f: F,
     left: E1,
     right: E2,
 }
 
-impl<F, E1, E2, O> BinaryOpExpr<F, E1, E2, O>
+impl<F, E1, E2, O> BinaryFnExpr<F, E1, E2, O>
 where
     F: Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
     E2: Expression<Dim = E1::Dim>,
 {
-    /// Returns a new expression applying `oper` to `left` and `right`.
+    /// Returns a new expression applying `f` to `left` and `right`.
     ///
     /// Returns `None` if the shapes of the arrays cannot be broadcast
     /// together. Note that the broadcasting is more general than
     /// `ArrayBase.broadcast()`; cobroadcasting is supported.
-    pub fn new(oper: F, left: E1, right: E2) -> Option<Self> {
+    pub fn new(f: F, left: E1, right: E2) -> Option<Self> {
         broadcast::<E1::Dim>(left.shape(), right.shape()).map(|shape| {
             let left = left.broadcast_move(shape.clone()).unwrap();
             let right = right.broadcast_move(shape.clone()).unwrap();
-            BinaryOpExpr { oper, left, right }
+            BinaryFnExpr { f, left, right }
         })
     }
 }
 
-impl<F, E1, E2, O> Expression for BinaryOpExpr<F, E1, E2, O>
+impl<F, E1, E2, O> Expression for BinaryFnExpr<F, E1, E2, O>
 where
     F: Clone + Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
@@ -546,28 +545,26 @@ where
     }
 
     fn broadcast_move(self, shape: Self::Dim) -> Option<Self> {
-        let BinaryOpExpr {
-            oper, left, right, ..
-        } = self;
+        let BinaryFnExpr { f, left, right, .. } = self;
         match (
             left.broadcast_move(shape.clone()),
             right.broadcast_move(shape),
         ) {
-            (Some(new_left), Some(new_right)) => BinaryOpExpr::new(oper, new_left, new_right),
+            (Some(new_left), Some(new_right)) => BinaryFnExpr::new(f, new_left, new_right),
             _ => None,
         }
     }
 
     #[inline]
     fn eval_item(&self, (left_item, right_item): (E1::Item, E2::Item)) -> O {
-        (self.oper)(
+        (self.f)(
             self.left.eval_item(left_item),
             self.right.eval_item(right_item),
         )
     }
 }
 
-impl<F, E1, E2, O> Zippable for BinaryOpExpr<F, E1, E2, O>
+impl<F, E1, E2, O> Zippable for BinaryFnExpr<F, E1, E2, O>
 where
     F: Clone + Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
@@ -606,13 +603,13 @@ where
         // let left_split = self.left.split_at(axis, index);
         // let right_split = self.right.split_at(axis, index);
         // (
-        //     BinaryOpExpr {
-        //         oper: self.oper.clone(),
+        //     BinaryFnExpr {
+        //         f: self.f.clone(),
         //         left: left_split.0,
         //         right: right_split.0,
         //     },
-        //     BinaryOpExpr {
-        //         oper: self.oper,
+        //     BinaryFnExpr {
+        //         f: self.f,
         //         left: left_split.1,
         //         right: right_split.1,
         //     },
@@ -625,19 +622,19 @@ macro_rules! impl_unary_op {
         $($header)*
         where
             Self: Expression,
-            <Self as Expression>::OutElem: $trait,
+            <Self as Expression>::OutElem: ::std::ops::$trait,
             $($constraints)*
         {
-            type Output = UnaryOpExpr<
+            type Output = UnaryFnExpr<
                 fn(<Self as Expression>::OutElem)
-                    -> <<Self as Expression>::OutElem as $trait>::Output,
+                    -> <<Self as Expression>::OutElem as ::std::ops::$trait>::Output,
                 Self,
-                <<Self as Expression>::OutElem as $trait>::Output,
+                <<Self as Expression>::OutElem as ::std::ops::$trait>::Output,
             >;
 
             #[inline(always)]
             fn $method(self) -> Self::Output {
-                UnaryOpExpr::new($trait::$method, self)
+                UnaryFnExpr::new(::std::ops::$trait::$method, self)
             }
         }
     }
@@ -647,12 +644,12 @@ macro_rules! impl_unary_op_all {
     ($trait:ident, $method:ident) => {
         impl_unary_op!(
             $trait, $method,
-            (impl<'a, A, D> $trait for ArrayViewExpr<'a, A, D>),
+            (impl<'a, A, D> ::std::ops::$trait for ArrayViewExpr<'a, A, D>),
             (D: Dimension)
         );
         impl_unary_op!(
             $trait, $method,
-            (impl<F, E, O> $trait for UnaryOpExpr<F, E, O>),
+            (impl<F, E, O> ::std::ops::$trait for UnaryFnExpr<F, E, O>),
             (
                 F: Fn(E::OutElem) -> O,
                 E: Expression,
@@ -660,7 +657,7 @@ macro_rules! impl_unary_op_all {
         );
         impl_unary_op!(
             $trait, $method,
-            (impl<F, E1, E2, O> $trait for BinaryOpExpr<F, E1, E2, O>),
+            (impl<F, E1, E2, O> ::std::ops::$trait for BinaryFnExpr<F, E1, E2, O>),
             (
                 F: Fn(E1::OutElem, E2::OutElem) -> O,
                 E1: Expression,
@@ -678,13 +675,13 @@ macro_rules! impl_binary_op {
         $($header)*
         where
             Self: Expression,
-            <Self as Expression>::OutElem: $trait<Rhs::OutElem>,
+            <Self as Expression>::OutElem: ::std::ops::$trait<Rhs::OutElem>,
             Rhs: Expression<Dim = <Self as Zippable>::Dim>,
             $($constraints)*
         {
-            type Output = BinaryOpExpr<
+            type Output = BinaryFnExpr<
                 fn(<Self as Expression>::OutElem, Rhs::OutElem)
-                    -> <<Self as Expression>::OutElem as $trait<Rhs::OutElem>>::Output,
+                    -> <<Self as Expression>::OutElem as ::std::ops::$trait<Rhs::OutElem>>::Output,
                 Self,
                 Rhs,
                 <<Self as Expression>::OutElem as $trait<<Rhs as Expression>::OutElem>>::Output,
@@ -694,7 +691,7 @@ macro_rules! impl_binary_op {
             fn $method(self, rhs: Rhs) -> Self::Output {
                 // Extra type annotation is necessary to prevent compile error
                 // due to incorrect inference.
-                BinaryOpExpr::<fn(_, _) -> _, _, _, _>::new($trait::$method, self, rhs).unwrap()
+                BinaryFnExpr::<fn(_, _) -> _, _, _, _>::new($trait::$method, self, rhs).unwrap()
             }
         }
     }
@@ -704,12 +701,12 @@ macro_rules! impl_binary_op_all {
     ($trait:ident, $method:ident) => {
         impl_binary_op!(
             $trait, $method,
-            (impl<'a, A, D, Rhs> $trait<Rhs> for ArrayViewExpr<'a, A, D>),
+            (impl<'a, A, D, Rhs> ::std::ops::$trait<Rhs> for ArrayViewExpr<'a, A, D>),
             (D: Dimension)
         );
         impl_binary_op!(
             $trait, $method,
-            (impl<F, E, O, Rhs> $trait<Rhs> for UnaryOpExpr<F, E, O>),
+            (impl<F, E, O, Rhs> ::std::ops::$trait<Rhs> for UnaryFnExpr<F, E, O>),
             (
                 F: Fn(E::OutElem) -> O,
                 E: Expression,
@@ -717,7 +714,7 @@ macro_rules! impl_binary_op_all {
         );
         impl_binary_op!(
             $trait, $method,
-            (impl<F, E1, E2, O, Rhs> $trait<Rhs> for BinaryOpExpr<F, E1, E2, O>),
+            (impl<F, E1, E2, O, Rhs> ::std::ops::$trait<Rhs> for BinaryFnExpr<F, E1, E2, O>),
             (
                 F: Fn(E1::OutElem, E2::OutElem) -> O,
                 E1: Expression,

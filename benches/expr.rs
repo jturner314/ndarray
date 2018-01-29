@@ -7,7 +7,7 @@ extern crate rand;
 extern crate test;
 
 use ndarray::prelude::*;
-use ndarray::expr::{ArrayViewExpr, BinaryOpExpr, Expression, ExpressionExt};
+use ndarray::expr::{ArrayViewExpr, BinaryFnExpr, Expression, ExpressionExt};
 use ndarray_rand::RandomExt;
 use rand::{Rng, SeedableRng, StdRng};
 use rand::distributions::Range;
@@ -87,10 +87,10 @@ fn two_ops_expr_manual(bencher: &mut Bencher) {
     let b = create_input(&mut rng);
     let c = create_input(&mut rng);
     bencher.iter(|| {
-        BinaryOpExpr::new(
+        BinaryFnExpr::new(
             std::ops::Add::add,
             ArrayViewExpr::new(a.view()),
-            BinaryOpExpr::new(
+            BinaryFnExpr::new(
                 std::ops::Mul::mul,
                 ArrayViewExpr::new(b.view()),
                 ArrayViewExpr::new(c.view()),
