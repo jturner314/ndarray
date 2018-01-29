@@ -512,7 +512,7 @@ where
 
 impl<F, E1, E2, O> Expression for BinaryFnExpr<F, E1, E2, O>
 where
-    F: Clone + Fn(E1::OutElem, E2::OutElem) -> O,
+    F: Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
     E2: Expression<Dim = E1::Dim>,
     O: Copy,
@@ -566,7 +566,7 @@ where
 
 impl<F, E1, E2, O> Zippable for BinaryFnExpr<F, E1, E2, O>
 where
-    F: Clone + Fn(E1::OutElem, E2::OutElem) -> O,
+    F: Fn(E1::OutElem, E2::OutElem) -> O,
     E1: Expression,
     E2: Expression<Dim = E1::Dim>,
 {
