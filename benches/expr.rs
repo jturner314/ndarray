@@ -7,7 +7,7 @@ extern crate rand;
 extern crate test;
 
 use ndarray::prelude::*;
-use ndarray::expr::{ArrayViewExpr, BinaryFnExpr, Expression, ExpressionExt};
+use ndarray::expr::{Expression, ExpressionExt};
 use ndarray_rand::RandomExt;
 use rand::{Rng, SeedableRng, StdRng};
 use rand::distributions::Range;
@@ -70,32 +70,26 @@ fn two_ops_expr(bencher: &mut Bencher) {
 }
 
 #[bench]
-fn two_ops_expr_fn(bencher: &mut Bencher) {
+fn complex_zip(bencher: &mut Bencher) {
     let mut rng: StdRng = SeedableRng::from_seed(SEED);
     let a = create_input(&mut rng);
     let b = create_input(&mut rng);
     let c = create_input(&mut rng);
     bencher.iter(|| {
-        (::std::ops::Add::add(a.as_expr(), ::std::ops::Mul::mul(b.as_expr(), c.as_expr())).eval())
+        let mut out = unsafe { Array2::uninitialized(SHAPE2) };
+        azip!(mut out, a, b, c in {
+            *out = a + (-(b * c) / a) - b;
+        });
+        out
     })
 }
 
 #[bench]
-fn two_ops_expr_manual(bencher: &mut Bencher) {
+fn complex_expr(bencher: &mut Bencher) {
     let mut rng: StdRng = SeedableRng::from_seed(SEED);
     let a = create_input(&mut rng);
     let b = create_input(&mut rng);
     let c = create_input(&mut rng);
-    bencher.iter(|| {
-        BinaryFnExpr::new(
-            std::ops::Add::add,
-            ArrayViewExpr::new(a.view()),
-            BinaryFnExpr::new(
-                std::ops::Mul::mul,
-                ArrayViewExpr::new(b.view()),
-                ArrayViewExpr::new(c.view()),
-            ).unwrap(),
-        ).unwrap()
-            .eval()
-    })
+    bencher
+        .iter(|| (a.as_expr() + (-(b.as_expr() * c.as_expr()) / a.as_expr()) - b.as_expr()).eval())
 }
