@@ -82,6 +82,8 @@ use imp_prelude::*;
 use layout::{Layout, LayoutPriv, CORDER, FORDER};
 use zip::{Offset, Zippable};
 
+mod ops;
+
 /// An expression of arrays.
 pub trait Expression: Zippable {
     /// Type of elements of output array.
@@ -616,119 +618,3 @@ where
         // )
     }
 }
-
-macro_rules! impl_unary_op {
-    ($trait:ident, $method:ident, ($($header:tt)*), ($($constraints:tt)*)) => {
-        $($header)*
-        where
-            Self: Expression,
-            <Self as Expression>::OutElem: ::std::ops::$trait,
-            $($constraints)*
-        {
-            type Output = UnaryFnExpr<
-                fn(<Self as Expression>::OutElem)
-                    -> <<Self as Expression>::OutElem as ::std::ops::$trait>::Output,
-                Self,
-                <<Self as Expression>::OutElem as ::std::ops::$trait>::Output,
-            >;
-
-            #[inline(always)]
-            fn $method(self) -> Self::Output {
-                UnaryFnExpr::new(::std::ops::$trait::$method, self)
-            }
-        }
-    }
-}
-
-macro_rules! impl_unary_op_all {
-    ($trait:ident, $method:ident) => {
-        impl_unary_op!(
-            $trait, $method,
-            (impl<'a, A, D> ::std::ops::$trait for ArrayViewExpr<'a, A, D>),
-            (D: Dimension)
-        );
-        impl_unary_op!(
-            $trait, $method,
-            (impl<F, E, O> ::std::ops::$trait for UnaryFnExpr<F, E, O>),
-            (
-                F: Fn(E::OutElem) -> O,
-                E: Expression,
-            )
-        );
-        impl_unary_op!(
-            $trait, $method,
-            (impl<F, E1, E2, O> ::std::ops::$trait for BinaryFnExpr<F, E1, E2, O>),
-            (
-                F: Fn(E1::OutElem, E2::OutElem) -> O,
-                E1: Expression,
-                E2: Expression<Dim = E1::Dim>,
-            )
-        );
-    }
-}
-
-impl_unary_op_all!(Neg, neg);
-impl_unary_op_all!(Not, not);
-
-macro_rules! impl_binary_op {
-    ($trait:ident, $method:ident, ($($header:tt)*), ($($constraints:tt)*)) => {
-        $($header)*
-        where
-            Self: Expression,
-            <Self as Expression>::OutElem: ::std::ops::$trait<Rhs::OutElem>,
-            Rhs: Expression<Dim = <Self as Zippable>::Dim>,
-            $($constraints)*
-        {
-            type Output = BinaryFnExpr<
-                fn(<Self as Expression>::OutElem, Rhs::OutElem)
-                    -> <<Self as Expression>::OutElem as ::std::ops::$trait<Rhs::OutElem>>::Output,
-                Self,
-                Rhs,
-                <<Self as Expression>::OutElem as $trait<<Rhs as Expression>::OutElem>>::Output,
-            >;
-
-            #[inline(always)]
-            fn $method(self, rhs: Rhs) -> Self::Output {
-                // Extra type annotation is necessary to prevent compile error
-                // due to incorrect inference.
-                BinaryFnExpr::<fn(_, _) -> _, _, _, _>::new($trait::$method, self, rhs).unwrap()
-            }
-        }
-    }
-}
-
-macro_rules! impl_binary_op_all {
-    ($trait:ident, $method:ident) => {
-        impl_binary_op!(
-            $trait, $method,
-            (impl<'a, A, D, Rhs> ::std::ops::$trait<Rhs> for ArrayViewExpr<'a, A, D>),
-            (D: Dimension)
-        );
-        impl_binary_op!(
-            $trait, $method,
-            (impl<F, E, O, Rhs> ::std::ops::$trait<Rhs> for UnaryFnExpr<F, E, O>),
-            (
-                F: Fn(E::OutElem) -> O,
-                E: Expression,
-            )
-        );
-        impl_binary_op!(
-            $trait, $method,
-            (impl<F, E1, E2, O, Rhs> ::std::ops::$trait<Rhs> for BinaryFnExpr<F, E1, E2, O>),
-            (
-                F: Fn(E1::OutElem, E2::OutElem) -> O,
-                E1: Expression,
-                E2: Expression<Dim = E1::Dim>,
-            )
-        );
-    }
-}
-
-impl_binary_op_all!(Add, add);
-impl_binary_op_all!(BitAnd, bitand);
-impl_binary_op_all!(BitOr, bitor);
-impl_binary_op_all!(BitXor, bitxor);
-impl_binary_op_all!(Div, div);
-impl_binary_op_all!(Mul, mul);
-impl_binary_op_all!(Rem, rem);
-impl_binary_op_all!(Sub, sub);
