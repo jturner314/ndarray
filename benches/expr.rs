@@ -93,3 +93,31 @@ fn complex_expr(bencher: &mut Bencher) {
     bencher
         .iter(|| (a.as_expr() + (-(b.as_expr() * c.as_expr()) / a.as_expr()) - b.as_expr()).eval())
 }
+
+#[bench]
+fn two_ops_zip_add_assign(bencher: &mut Bencher) {
+    let mut rng: StdRng = SeedableRng::from_seed(SEED);
+    let a = create_input(&mut rng);
+    let b = create_input(&mut rng);
+    let c = create_input(&mut rng);
+    bencher.iter(|| {
+        let mut out = Array2::<f64>::zeros(SHAPE2);
+        azip!(mut out, a, b, c in {
+            *out += a + (b * c);
+        });
+        out
+    })
+}
+
+#[bench]
+fn two_ops_expr_add_assign(bencher: &mut Bencher) {
+    let mut rng: StdRng = SeedableRng::from_seed(SEED);
+    let a = create_input(&mut rng);
+    let b = create_input(&mut rng);
+    let c = create_input(&mut rng);
+    bencher.iter(|| {
+        let mut out = Array2::<f64>::zeros(SHAPE2);
+        out += a.as_expr() + (b.as_expr() * c.as_expr());
+        out
+    })
+}

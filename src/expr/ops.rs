@@ -1,4 +1,4 @@
-use expr::{ArrayViewExpr, Expression, FnExpr};
+use expr::{ArrayViewExpr, Expression, ExpressionPriv, FnExpr};
 use imp_prelude::*;
 use layout::{Layout, LayoutPriv};
 use std::marker::PhantomData;
@@ -529,3 +529,86 @@ define_and_impl_binary_op!(Div, div);
 define_and_impl_binary_op!(Mul, mul);
 define_and_impl_binary_op!(Rem, rem);
 define_and_impl_binary_op!(Sub, sub);
+
+macro_rules! impl_inplace_op {
+    ($trait:ident, $method:ident, ($($generics:tt)*), $rhs:ty, ($($constraints:tt)*)) => {
+        impl<$($generics)*, Ao, S, D> ::std::ops::$trait<$rhs> for ArrayBase<S, D>
+        where
+            Ao: ::std::ops::$trait<<$rhs as Expression>::OutElem>,
+            S: DataMut<Elem = Ao>,
+            D: Dimension,
+            $($constraints)*
+        {
+            fn $method(&mut self, rhs: $rhs) {
+                rhs.eval_apply(
+                    |out, res| ::std::ops::$trait::$method(out, res),
+                    self.view_mut(),
+                )
+            }
+        }
+    }
+}
+
+macro_rules! impl_inplace_op_for_fn_expr {
+    ($trait:ident, $method:ident, ($($generics:ident),*)) => {
+        impl_inplace_op!(
+            $trait, $method,
+            (O, F, $($generics),*),
+            FnExpr<F, ($($generics),*,)>,
+            (
+                O: Copy,
+                F: Fn($($generics::OutElem),*) -> O,
+                $($generics: Expression<Dim = D>),*
+            )
+        );
+    }
+}
+
+macro_rules! impl_inplace_op_all {
+    ($trait:ident, $method:ident) => {
+        impl_inplace_op!(
+            $trait, $method,
+            ('a, Ai),
+            ArrayViewExpr<'a, Ai, D>,
+            (Ai: Copy)
+        );
+        impl_inplace_op!(
+            $trait, $method,
+            (F, E),
+            UnaryOpExpr<F, E>,
+            (
+                F: UnaryOperator<E::OutElem>,
+                E: Expression<Dim = D>,
+                F::Output: Copy
+            )
+        );
+        impl_inplace_op!(
+            $trait, $method,
+            (F, E1, E2),
+            BinaryOpExpr<F, E1, E2>,
+            (
+                F: BinaryOperator<E1::OutElem, E2::OutElem>,
+                E1: Expression<Dim = D>,
+                E2: Expression<Dim = D>,
+                F::Output: Copy,
+            )
+        );
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1));
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1, E2));
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1, E2, E3));
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4));
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5));
+        impl_inplace_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5, E6));
+    }
+}
+
+impl_inplace_op_all!(AddAssign, add_assign);
+impl_inplace_op_all!(BitAndAssign, bitand_assign);
+impl_inplace_op_all!(BitOrAssign, bitor_assign);
+impl_inplace_op_all!(BitXorAssign, bitxor_assign);
+impl_inplace_op_all!(DivAssign, div_assign);
+impl_inplace_op_all!(MulAssign, mul_assign);
+impl_inplace_op_all!(RemAssign, rem_assign);
+impl_inplace_op_all!(ShlAssign, shl_assign);
+impl_inplace_op_all!(ShrAssign, shr_assign);
+impl_inplace_op_all!(SubAssign, sub_assign);

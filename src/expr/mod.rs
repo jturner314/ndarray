@@ -116,7 +116,7 @@ pub trait Expression: Zippable {
     /// only the single output array.
     fn eval(&self) -> Array<Self::OutElem, Self::Dim> {
         let mut out = unsafe { Array::uninitialized(self.raw_dim()) };
-        self.eval_assign(out.view_mut());
+        self.eval_apply(|out, res| *out = res, out.view_mut());
         out
     }
 
@@ -130,16 +130,23 @@ pub trait Expression: Zippable {
 }
 
 trait ExpressionPriv: Expression {
-    /// Applies the expression to the arrays, assigning the result to `out`.
-    fn eval_assign(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
+    /// Evaluates each element of the expression and calls `f` with a mutable
+    /// reference to the corresponding element in `out` and the result.
+    fn eval_apply<A, F>(&self, f: F, out: ArrayViewMut<A, Self::Dim>)
+    where
+        F: FnMut(&mut A, Self::OutElem),
+    {
         if self.layout().and(out.layout()).is(CORDER | FORDER) {
-            self.eval_assign_contiguous(out)
+            self.eval_apply_contiguous(f, out)
         } else {
-            self.eval_assign_strided(out)
+            self.eval_apply_strided(f, out)
         }
     }
 
-    fn eval_assign_contiguous(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
+    fn eval_apply_contiguous<A, F>(&self, mut f: F, out: ArrayViewMut<A, Self::Dim>)
+    where
+        F: FnMut(&mut A, Self::OutElem),
+    {
         assert_eq!(
             self.shape(),
             out.shape(),
@@ -151,12 +158,18 @@ trait ExpressionPriv: Expression {
         for i in 0..self.len() {
             unsafe {
                 let (out_ptr_i, ptr_i) = ptrs.stride_offset(inner_strides, i);
-                *Zippable::as_ref(&out, out_ptr_i) = self.eval_item(self.as_ref(ptr_i));
+                f(
+                    Zippable::as_ref(&out, out_ptr_i),
+                    self.eval_item(self.as_ref(ptr_i)),
+                );
             }
         }
     }
 
-    fn eval_assign_strided(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
+    fn eval_apply_strided<A, F>(&self, mut f: F, out: ArrayViewMut<A, Self::Dim>)
+    where
+        F: FnMut(&mut A, Self::OutElem),
+    {
         assert_eq!(
             self.shape(),
             out.shape(),
@@ -179,7 +192,10 @@ trait ExpressionPriv: Expression {
                 let ptr = (Zippable::uget_ptr(&out, &index), self.uget_ptr(&index));
                 for i in 0..inner_len {
                     let (out_p, p) = ptr.stride_offset(inner_strides, i);
-                    *Zippable::as_ref(&out, out_p) = self.eval_item(self.as_ref(p));
+                    f(
+                        Zippable::as_ref(&out, out_p),
+                        self.eval_item(self.as_ref(p)),
+                    );
                 }
             }
             index_ = dim.next_for(index);
@@ -231,7 +247,7 @@ where
         E: Expression<OutElem = S::Elem, Dim = D>,
         A: Copy,
     {
-        expr.eval_assign(self.view_mut())
+        expr.eval_apply(|out, res| *out = res, self.view_mut())
     }
 
     fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>>
