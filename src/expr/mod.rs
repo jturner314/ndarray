@@ -120,15 +120,6 @@ pub trait Expression: Zippable {
         out
     }
 
-    /// Applies the expression to the arrays, assigning the result to `out`.
-    fn eval_assign(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
-        if self.layout().and(out.layout()).is(CORDER | FORDER) {
-            self.eval_assign_contiguous(out)
-        } else {
-            self.eval_assign_strided(out)
-        }
-    }
-
     /// Creates an expression that calls `f` by value on each element.
     fn map_into<F, O>(self, f: F) -> UnaryFnExpr<F, Self>
     where
@@ -139,6 +130,15 @@ pub trait Expression: Zippable {
 }
 
 trait ExpressionPriv: Expression {
+    /// Applies the expression to the arrays, assigning the result to `out`.
+    fn eval_assign(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
+        if self.layout().and(out.layout()).is(CORDER | FORDER) {
+            self.eval_assign_contiguous(out)
+        } else {
+            self.eval_assign_strided(out)
+        }
+    }
+
     fn eval_assign_contiguous(&self, out: ArrayViewMut<Self::OutElem, Self::Dim>) {
         assert_eq!(
             self.shape(),
@@ -194,27 +194,44 @@ where
 }
 
 /// Convenience extension methods for `ArrayBase`.
-pub trait ExpressionExt<A, D>
+pub trait ExpressionExt<S, D>
 where
+    S: Data,
     D: Dimension,
 {
     /// Creates an expression view of `self`.
-    fn as_expr(&self) -> ArrayViewExpr<A, D>;
+    fn as_expr(&self) -> ArrayViewExpr<S::Elem, D>;
+
+    /// Assigns the result of the expression to `self`.
+    fn assign_eval<E>(&mut self, expr: E)
+    where
+        S: DataMut,
+        E: Expression<OutElem = S::Elem, Dim = D>,
+        S::Elem: Copy;
 
     /// Creates an expression that calls `f` by value on each element.
-    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>>
+    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, S::Elem, D>>
     where
-        F: Fn(&'a A) -> O,
-        A: Copy;
+        F: Fn(&'a S::Elem) -> O,
+        S::Elem: Copy;
 }
 
-impl<A, S, D> ExpressionExt<A, D> for ArrayBase<S, D>
+impl<A, S, D> ExpressionExt<S, D> for ArrayBase<S, D>
 where
     S: Data<Elem = A>,
     D: Dimension,
 {
     fn as_expr(&self) -> ArrayViewExpr<A, D> {
         ArrayViewExpr::new(self.view())
+    }
+
+    fn assign_eval<E>(&mut self, expr: E)
+    where
+        S: DataMut,
+        E: Expression<OutElem = S::Elem, Dim = D>,
+        A: Copy,
+    {
+        expr.eval_assign(self.view_mut())
     }
 
     fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>>
