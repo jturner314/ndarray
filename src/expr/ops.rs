@@ -1,8 +1,39 @@
-use expr::{broadcast, ArrayViewExpr, BinaryFnExpr, Expression, UnaryFnExpr};
+use expr::{ArrayViewExpr, Expression, FnExpr};
 use imp_prelude::*;
 use layout::{Layout, LayoutPriv};
 use std::marker::PhantomData;
 use zip::Zippable;
+
+fn broadcast<D: Dimension>(shape1: &[usize], shape2: &[usize]) -> Option<D> {
+    // Zip the dims in reverse order, adding `&1`s to the shorter one until
+    // they're the same length.
+    let zipped = if shape1.len() < shape2.len() {
+        shape1
+            .iter()
+            .rev()
+            .chain(::std::iter::repeat(&1))
+            .zip(shape2.iter().rev())
+    } else {
+        shape2
+            .iter()
+            .rev()
+            .chain(::std::iter::repeat(&1))
+            .zip(shape1.iter().rev())
+    };
+    let mut out = D::zero_index_with_ndim(::std::cmp::max(shape1.len(), shape2.len()));
+    for ((&len1, &len2), len_out) in zipped.zip(out.slice_mut().iter_mut().rev()) {
+        if len1 == len2 {
+            *len_out = len1;
+        } else if len1 == 1 {
+            *len_out = len2;
+        } else if len2 == 1 {
+            *len_out = len1;
+        } else {
+            return None;
+        }
+    }
+    Some(out)
+}
 
 pub trait UnaryOperator<Arg> {
     type Output;
@@ -323,6 +354,20 @@ macro_rules! impl_unary_op {
     }
 }
 
+macro_rules! impl_unary_op_for_fn_expr {
+    ($trait:ident, $method:ident, ($($generics:ident),*)) => {
+        impl_unary_op!(
+            $trait, $method,
+            (impl<Dim, O, F, $($generics),*> ::std::ops::$trait for FnExpr<F, ($($generics),*)>),
+            (
+                Dim: Dimension,
+                F: Fn($($generics),*) -> O,
+                $($generics: Expression<Dim = Dim>),*
+            )
+        );
+    }
+}
+
 /// For an operator, define the corresponding `UnaryOperator` struct and
 /// implement the operator for all the `Expression` types.
 macro_rules! define_and_impl_unary_op {
@@ -332,23 +377,6 @@ macro_rules! define_and_impl_unary_op {
             $trait, $method,
             (impl<'a, A, D> ::std::ops::$trait for ArrayViewExpr<'a, A, D>),
             (D: Dimension)
-        );
-        impl_unary_op!(
-            $trait, $method,
-            (impl<F, E, O> ::std::ops::$trait for UnaryFnExpr<F, E, O>),
-            (
-                F: Fn(E::OutElem) -> O,
-                E: Expression,
-            )
-        );
-        impl_unary_op!(
-            $trait, $method,
-            (impl<F, E1, E2, O> ::std::ops::$trait for BinaryFnExpr<F, E1, E2, O>),
-            (
-                F: Fn(E1::OutElem, E2::OutElem) -> O,
-                E1: Expression,
-                E2: Expression<Dim = E1::Dim>,
-            )
         );
         impl_unary_op!(
             $trait, $method,
@@ -367,6 +395,12 @@ macro_rules! define_and_impl_unary_op {
                 E2: Expression<Dim = E1::Dim>,
             )
         );
+        impl_unary_op_for_fn_expr!($trait, $method, (E1));
+        impl_unary_op_for_fn_expr!($trait, $method, (E1, E2));
+        impl_unary_op_for_fn_expr!($trait, $method, (E1, E2, E3));
+        impl_unary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4));
+        impl_unary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5));
+        impl_unary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5, E6));
     }
 }
 
@@ -436,6 +470,21 @@ macro_rules! impl_binary_op {
     }
 }
 
+macro_rules! impl_binary_op_for_fn_expr {
+    ($trait:ident, $method:ident, ($($generics:ident),*)) => {
+        impl_binary_op!(
+            $trait, $method,
+            (impl<Rhs, Dim, O, F, $($generics),*> ::std::ops::$trait<Rhs>
+             for FnExpr<F, ($($generics),*)>),
+            (
+                Dim: Dimension,
+                F: Fn($($generics),*) -> O,
+                $($generics: Expression<Dim = Dim>),*
+            )
+        );
+    }
+}
+
 /// For an operator, define the corresponding `BinaryOperator` struct and
 /// implement the operator for all the `Expression` types.
 macro_rules! define_and_impl_binary_op {
@@ -445,23 +494,6 @@ macro_rules! define_and_impl_binary_op {
             $trait, $method,
             (impl<'a, A, D, Rhs> ::std::ops::$trait<Rhs> for ArrayViewExpr<'a, A, D>),
             (D: Dimension)
-        );
-        impl_binary_op!(
-            $trait, $method,
-            (impl<F, E, O, Rhs> ::std::ops::$trait<Rhs> for UnaryFnExpr<F, E, O>),
-            (
-                F: Fn(E::OutElem) -> O,
-                E: Expression,
-            )
-        );
-        impl_binary_op!(
-            $trait, $method,
-            (impl<F, E1, E2, O, Rhs> ::std::ops::$trait<Rhs> for BinaryFnExpr<F, E1, E2, O>),
-            (
-                F: Fn(E1::OutElem, E2::OutElem) -> O,
-                E1: Expression,
-                E2: Expression<Dim = E1::Dim>,
-            )
         );
         impl_binary_op!(
             $trait, $method,
@@ -480,6 +512,12 @@ macro_rules! define_and_impl_binary_op {
                 E2: Expression<Dim = E1::Dim>,
             )
         );
+        impl_binary_op_for_fn_expr!($trait, $method, (E1));
+        impl_binary_op_for_fn_expr!($trait, $method, (E1, E2));
+        impl_binary_op_for_fn_expr!($trait, $method, (E1, E2, E3));
+        impl_binary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4));
+        impl_binary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5));
+        impl_binary_op_for_fn_expr!($trait, $method, (E1, E2, E3, E4, E5, E6));
     }
 }
 

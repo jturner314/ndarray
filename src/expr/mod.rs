@@ -130,7 +130,7 @@ pub trait Expression: Zippable {
     }
 
     /// Creates an expression that calls `f` by value on each element.
-    fn map_into<F, O>(self, f: F) -> UnaryFnExpr<F, Self, O>
+    fn map_into<F, O>(self, f: F) -> UnaryFnExpr<F, Self>
     where
         F: Fn(Self::OutElem) -> O,
     {
@@ -202,7 +202,7 @@ where
     fn as_expr(&self) -> ArrayViewExpr<A, D>;
 
     /// Creates an expression that calls `f` by value on each element.
-    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>, O>
+    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>>
     where
         F: Fn(&'a A) -> O,
         A: Copy;
@@ -217,7 +217,7 @@ where
         ArrayViewExpr::new(self.view())
     }
 
-    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>, O>
+    fn expr_map<'a, F, O>(&'a self, f: F) -> UnaryFnExpr<F, ArrayViewExpr<'a, A, D>>
     where
         F: Fn(&'a A) -> O,
         A: Copy,
@@ -333,288 +333,224 @@ where
     }
 }
 
-/// An expression with a single argument.
-#[derive(Clone, Debug)]
-pub struct UnaryFnExpr<F, E, O>
-where
-    F: Fn(E::OutElem) -> O,
-    E: Expression,
-{
-    f: F,
-    inner: E,
-}
+/// An expression that applies a function to an inner expression.
+pub type UnaryFnExpr<F, E> = FnExpr<F, (E,)>;
 
-impl<F, E, O> UnaryFnExpr<F, E, O>
-where
-    F: Fn(E::OutElem) -> O,
-    E: Expression,
-{
-    /// Returns a new expression applying `f` to `inner`.
-    pub fn new(f: F, inner: E) -> Self {
-        UnaryFnExpr { f, inner }
-    }
-}
-
-impl<F, E, O> Expression for UnaryFnExpr<F, E, O>
-where
-    F: Fn(E::OutElem) -> O,
-    E: Expression,
-    O: Copy,
-{
-    type OutElem = O;
-
-    #[inline]
-    fn ndim(&self) -> usize {
-        self.inner.ndim()
-    }
-
-    #[inline]
-    fn raw_dim(&self) -> Self::Dim {
-        self.inner.raw_dim()
-    }
-
-    #[inline]
-    fn shape(&self) -> &[usize] {
-        self.inner.shape()
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    #[inline]
-    fn layout(&self) -> Layout {
-        self.inner.layout()
-    }
-
-    fn broadcast_move(self, shape: Self::Dim) -> Option<Self> {
-        let UnaryFnExpr { f, inner, .. } = self;
-        inner
-            .broadcast_move(shape)
-            .map(|new_inner| UnaryFnExpr::new(f, new_inner))
-    }
-
-    #[inline]
-    fn eval_item(&self, item: E::Item) -> O {
-        (self.f)(self.inner.eval_item(item))
-    }
-}
-
-impl<F, E, O> Zippable for UnaryFnExpr<F, E, O>
-where
-    F: Fn(E::OutElem) -> O,
-    E: Expression,
-{
-    type Item = E::Item;
-    type Ptr = E::Ptr;
-    type Dim = E::Dim;
-    type Stride = E::Stride;
-    #[inline]
-    fn stride_of(&self, axis: Axis) -> Self::Stride {
-        self.inner.stride_of(axis)
-    }
-    #[inline]
-    fn contiguous_stride(&self) -> Self::Stride {
-        self.inner.contiguous_stride()
-    }
-    #[inline]
-    fn as_ptr(&self) -> Self::Ptr {
-        self.inner.as_ptr()
-    }
-    #[inline]
-    unsafe fn as_ref(&self, ptr: Self::Ptr) -> Self::Item {
-        self.inner.as_ref(ptr)
-    }
-    #[inline]
-    unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr {
-        self.inner.uget_ptr(i)
-    }
-    #[inline]
-    fn split_at(self, _axis: Axis, _index: usize) -> (Self, Self) {
-        unimplemented!()
-        // let inner_split = self.inner.split_at(axis, index);
-        // (
-        //     UnaryFnExpr {
-        //         f: self.f.clone(),
-        //         inner: inner_split.0,
-        //     },
-        //     UnaryFnExpr {
-        //         f: self.f,
-        //         inner: inner_split.1,
-        //     },
-        // )
-    }
-}
+/// An expression that applies a function to two inner expressions.
+pub type BinaryFnExpr<F, E1, E2> = FnExpr<F, (E1, E2)>;
 
 /// Broadcast the shapes together, follwing the behavior of NumPy.
-fn broadcast<D: Dimension>(shape1: &[usize], shape2: &[usize]) -> Option<D> {
-    // Zip the dims in reverse order, adding `&1`s to the shorter one until
-    // they're the same length.
-    let zipped = if shape1.len() < shape2.len() {
-        shape1
-            .iter()
-            .rev()
-            .chain(::std::iter::repeat(&1))
-            .zip(shape2.iter().rev())
-    } else {
-        shape2
-            .iter()
-            .rev()
-            .chain(::std::iter::repeat(&1))
-            .zip(shape1.iter().rev())
+fn multi_broadcast<D: Dimension>(shapes: &[&[usize]]) -> Option<D> {
+    let ndim = match shapes.iter().map(|shape| shape.len()).max() {
+        Some(max) => max,
+        None => return None,
     };
-    let mut out = D::zero_index_with_ndim(::std::cmp::max(shape1.len(), shape2.len()));
-    for ((&len1, &len2), len_out) in zipped.zip(out.slice_mut().iter_mut().rev()) {
-        if len1 == len2 {
-            *len_out = len1;
-        } else if len1 == 1 {
-            *len_out = len2;
-        } else if len2 == 1 {
-            *len_out = len1;
-        } else {
-            return None;
+    let mut out = D::zero_index_with_ndim(ndim);
+    // axis = -1, -2, ...
+    for axis in (-(ndim as isize)..0).rev() {
+        let out_len = {
+            // borrowck
+            let out_axis = (out.ndim() as isize + axis) as usize;
+            &mut out[out_axis]
+        };
+        *out_len = 1;
+        for &shape in shapes {
+            let shape_len = shape.get((shape.len() as isize + axis) as usize);
+            match (*out_len, shape_len) {
+                (_, None) => (),
+                (1, Some(&len)) => *out_len = len,
+                (eq, Some(&len)) if eq == len => (),
+                (_, Some(_)) => return None,
+            }
         }
     }
     Some(out)
 }
 
-/// An expression with two arguments.
+/// An expression that applies a function to multiple argument expressions.
 #[derive(Clone, Debug)]
-pub struct BinaryFnExpr<F, E1, E2, O>
-where
-    F: Fn(E1::OutElem, E2::OutElem) -> O,
-    E1: Expression,
-    E2: Expression<Dim = E1::Dim>,
-{
+pub struct FnExpr<F, Es> {
     f: F,
-    left: E1,
-    right: E2,
+    inner: Es,
 }
 
-impl<F, E1, E2, O> BinaryFnExpr<F, E1, E2, O>
-where
-    F: Fn(E1::OutElem, E2::OutElem) -> O,
-    E1: Expression,
-    E2: Expression<Dim = E1::Dim>,
-{
-    /// Returns a new expression applying `f` to `left` and `right`.
-    ///
-    /// Returns `None` if the shapes of the arrays cannot be broadcast
-    /// together. Note that the broadcasting is more general than
-    /// `ArrayBase.broadcast()`; cobroadcasting is supported.
-    pub fn new(f: F, left: E1, right: E2) -> Option<Self> {
-        broadcast::<E1::Dim>(left.shape(), right.shape()).map(|shape| {
-            let left = left.broadcast_move(shape.clone()).unwrap();
-            let right = right.broadcast_move(shape.clone()).unwrap();
-            BinaryFnExpr { f, left, right }
-        })
-    }
+macro_rules! impl_fn_expr_new {
+    (($generic:ident,), ($var:ident,)) => {
+        impl<O, F, $generic> FnExpr<F, ($generic,)>
+        where
+            F: Fn($generic::OutElem) -> O,
+            $generic: Expression,
+        {
+            /// Returns a new expression applying `f` to the argument.
+            pub fn new(f: F, $var: $generic) -> Self {
+                FnExpr {
+                    f,
+                    inner: ($var,),
+                }
+            }
+        }
+    };
+    (($($generics:ident),*), ($($vars:ident),*)) => {
+        impl<Dim, O, F, $($generics),*> FnExpr<F, ($($generics),*)>
+        where
+            Dim: Dimension,
+            F: Fn($($generics::OutElem),*) -> O,
+            $($generics: Expression<Dim = Dim>),*
+        {
+            /// Returns a new expression applying `f` to the arguments.
+            ///
+            /// Returns `None` if the shapes of the expressions cannot be
+            /// broadcast together. Note that the broadcasting is more general
+            /// than `ArrayBase.broadcast()`; cobroadcasting is supported.
+            pub fn new(f: F, $($vars: $generics),*) -> Option<Self> {
+                multi_broadcast::<Dim>(&[$($vars.shape()),*]).map(|shape| {
+                    FnExpr {
+                        f,
+                        inner: (
+                            $($vars.broadcast_move(shape.clone()).unwrap()),*
+                        ),
+                    }
+                })
+            }
+        }
+    };
 }
 
-impl<F, E1, E2, O> Expression for BinaryFnExpr<F, E1, E2, O>
-where
-    F: Fn(E1::OutElem, E2::OutElem) -> O,
-    E1: Expression,
-    E2: Expression<Dim = E1::Dim>,
-    O: Copy,
-{
-    type OutElem = O;
+macro_rules! impl_expression_for_fn_expr {
+    (($gen_head:ident, $($gen_tail:ident),*), ($var_head:ident, $($var_tail:ident),*)) => {
+        #[allow(non_snake_case)]
+        impl<Dim, O, F, $gen_head, $($gen_tail),*> Expression
+            for FnExpr<F, ($gen_head, $($gen_tail),*)>
+        where
+            Dim: Dimension,
+            O: Copy,
+            F: Fn($gen_head::OutElem, $($gen_tail::OutElem),*) -> O,
+            $gen_head: Expression<Dim = Dim>,
+            $($gen_tail: Expression<Dim = Dim>),*
+        {
+            type OutElem = O;
 
-    #[inline]
-    fn ndim(&self) -> usize {
-        self.left.ndim()
-    }
+            #[inline]
+            fn ndim(&self) -> usize {
+                self.inner.0.ndim()
+            }
 
-    #[inline]
-    fn raw_dim(&self) -> Self::Dim {
-        self.left.raw_dim()
-    }
+            #[inline]
+            fn raw_dim(&self) -> Self::Dim {
+                self.inner.0.raw_dim()
+            }
 
-    #[inline]
-    fn shape(&self) -> &[usize] {
-        self.left.shape()
-    }
+            #[inline]
+            fn shape(&self) -> &[usize] {
+                self.inner.0.shape()
+            }
 
-    #[inline]
-    fn len(&self) -> usize {
-        self.left.len()
-    }
+            #[inline]
+            fn len(&self) -> usize {
+                self.inner.0.len()
+            }
 
-    #[inline]
-    fn layout(&self) -> Layout {
-        self.left.layout().and(self.right.layout())
-    }
+            #[inline]
+            fn layout(&self) -> Layout {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                $var_head.layout()$(.and($var_tail.layout()))*
+            }
 
-    fn broadcast_move(self, shape: Self::Dim) -> Option<Self> {
-        let BinaryFnExpr { f, left, right, .. } = self;
-        match (
-            left.broadcast_move(shape.clone()),
-            right.broadcast_move(shape),
-        ) {
-            (Some(new_left), Some(new_right)) => BinaryFnExpr::new(f, new_left, new_right),
-            _ => None,
+            fn broadcast_move(self, shape: Self::Dim) -> Option<Self> {
+                let FnExpr {
+                    f,
+                    inner: ($var_head, $($var_tail),*),
+                } = self;
+                match (
+                    $var_head.broadcast_move(shape.clone()),
+                    $($var_tail.broadcast_move(shape.clone())),*
+                ) {
+                    (Some($var_head), $(Some($var_tail)),*) => {
+                        Some(Self {
+                            f,
+                            inner: ($var_head, $($var_tail),*),
+                        })
+                    }
+                    _ => None,
+                }
+            }
+
+            #[inline]
+            fn eval_item(&self, item: Self::Item) -> O {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                let ($gen_head, $($gen_tail),*) = item;
+                (self.f)(
+                    $var_head.eval_item($gen_head),
+                    $($var_tail.eval_item($gen_tail)),*
+                )
+            }
         }
     }
+}
 
-    #[inline]
-    fn eval_item(&self, (left_item, right_item): (E1::Item, E2::Item)) -> O {
-        (self.f)(
-            self.left.eval_item(left_item),
-            self.right.eval_item(right_item),
-        )
+macro_rules! impl_zippable_for_fn_expr {
+    (($gen_head:ident, $($gen_tail:ident),*), ($var_head:ident, $($var_tail:ident),*)) => {
+        #[allow(non_snake_case)]
+        impl<Dim, O, F, $gen_head, $($gen_tail),*> Zippable
+            for FnExpr<F, ($gen_head, $($gen_tail),*)>
+        where
+            Dim: Dimension,
+            F: Fn($gen_head::OutElem, $($gen_tail::OutElem),*) -> O,
+            $gen_head: Expression<Dim = Dim>,
+            $($gen_tail: Expression<Dim = Dim>),*
+        {
+            type Item = ($gen_head::Item, $($gen_tail::Item),*);
+            type Ptr = ($gen_head::Ptr, $($gen_tail::Ptr),*);
+            type Dim = Dim;
+            type Stride = ($gen_head::Stride, $($gen_tail::Stride),*);
+            #[inline]
+            fn stride_of(&self, axis: Axis) -> Self::Stride {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                ($var_head.stride_of(axis), $($var_tail.stride_of(axis)),*)
+            }
+            #[inline]
+            fn contiguous_stride(&self) -> Self::Stride {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                ($var_head.contiguous_stride(), $($var_tail.contiguous_stride()),*)
+            }
+            #[inline]
+            fn as_ptr(&self) -> Self::Ptr {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                ($var_head.as_ptr(), $($var_tail.as_ptr()),*)
+            }
+            #[inline]
+            unsafe fn as_ref(&self, ptr: Self::Ptr) -> Self::Item {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                let ($gen_head, $($gen_tail),*) = ptr;
+                ($var_head.as_ref($gen_head), $($var_tail.as_ref($gen_tail)),*)
+            }
+            #[inline]
+            unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr {
+                let (ref $var_head, $(ref $var_tail),*) = self.inner;
+                ($var_head.uget_ptr(i), $($var_tail.uget_ptr(i)),*)
+            }
+            #[inline]
+            fn split_at(self, _axis: Axis, _index: usize) -> (Self, Self) {
+                unimplemented!()
+            }
+        }
     }
 }
 
-impl<F, E1, E2, O> Zippable for BinaryFnExpr<F, E1, E2, O>
-where
-    F: Fn(E1::OutElem, E2::OutElem) -> O,
-    E1: Expression,
-    E2: Expression<Dim = E1::Dim>,
-{
-    type Item = (E1::Item, E2::Item);
-    type Ptr = (E1::Ptr, E2::Ptr);
-    type Dim = E1::Dim;
-    type Stride = (E1::Stride, E2::Stride);
-    #[inline]
-    fn stride_of(&self, axis: Axis) -> Self::Stride {
-        (self.left.stride_of(axis), self.right.stride_of(axis))
-    }
-    #[inline]
-    fn contiguous_stride(&self) -> Self::Stride {
-        (
-            self.left.contiguous_stride(),
-            self.right.contiguous_stride(),
-        )
-    }
-    #[inline]
-    fn as_ptr(&self) -> Self::Ptr {
-        (self.left.as_ptr(), self.right.as_ptr())
-    }
-    #[inline]
-    unsafe fn as_ref(&self, (left_ptr, right_ptr): (E1::Ptr, E2::Ptr)) -> Self::Item {
-        (self.left.as_ref(left_ptr), self.right.as_ref(right_ptr))
-    }
-    #[inline]
-    unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr {
-        (self.left.uget_ptr(i), self.right.uget_ptr(i))
-    }
-    #[inline]
-    fn split_at(self, _axis: Axis, _index: usize) -> (Self, Self) {
-        unimplemented!()
-        // let left_split = self.left.split_at(axis, index);
-        // let right_split = self.right.split_at(axis, index);
-        // (
-        //     BinaryFnExpr {
-        //         f: self.f.clone(),
-        //         left: left_split.0,
-        //         right: right_split.0,
-        //     },
-        //     BinaryFnExpr {
-        //         f: self.f,
-        //         left: left_split.1,
-        //         right: right_split.1,
-        //     },
-        // )
+macro_rules! impl_fn_expr {
+    (($gen_head:ident, $($gen_tail:ident),*), ($var_head:ident, $($var_tail:ident),*)) => {
+        impl_fn_expr_new!(($gen_head, $($gen_tail),*), ($var_head, $($var_tail),*));
+        impl_expression_for_fn_expr!(($gen_head, $($gen_tail),*), ($var_head, $($var_tail),*));
+        impl_zippable_for_fn_expr!(($gen_head, $($gen_tail),*), ($var_head, $($var_tail),*));
     }
 }
+
+impl_fn_expr!((E1,), (expr1,));
+impl_fn_expr!((E1, E2), (expr1, expr2));
+impl_fn_expr!((E1, E2, E3), (expr1, expr2, expr3));
+impl_fn_expr!((E1, E2, E3, E4), (expr1, expr2, expr3, expr4));
+impl_fn_expr!((E1, E2, E3, E4, E5), (expr1, expr2, expr3, expr4, expr5));
+impl_fn_expr!(
+    (E1, E2, E3, E4, E5, E6),
+    (expr1, expr2, expr3, expr4, expr5, expr6)
+);
