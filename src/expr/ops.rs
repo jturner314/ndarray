@@ -541,10 +541,10 @@ define_and_impl_binary_op!(Rem, rem);
 define_and_impl_binary_op!(Sub, sub);
 
 macro_rules! impl_inplace_op {
-    ($trait:ident, $method:ident, ($($generics:tt)*), $rhs:ty, ($($constraints:tt)*)) => {
+    ($trait:ident, $method:ident, ($($generics:tt)*), $rhs:ty, $outelem:ty, ($($constraints:tt)*)) => {
         impl<$($generics)*, Ao, S, D> ::std::ops::$trait<$rhs> for ArrayBase<S, D>
         where
-            Ao: ::std::ops::$trait<<$rhs as Expression>::OutElem>,
+            Ao: ::std::ops::$trait<$outelem>,
             S: DataMut<Elem = Ao>,
             D: Dimension,
             $($constraints)*
@@ -565,6 +565,7 @@ macro_rules! impl_inplace_op_for_fn_expr {
             $trait, $method,
             (O, F, $($generics),*),
             FnExpr<F, ($($generics),*,)>,
+            O,
             (
                 O: Copy,
                 F: Fn($($generics::OutElem),*) -> O,
@@ -580,12 +581,14 @@ macro_rules! impl_inplace_op_all {
             $trait, $method,
             ('a, Ai),
             ArrayViewExpr<'a, Ai, D>,
+            &'a Ai,
             (Ai: Copy)
         );
         impl_inplace_op!(
             $trait, $method,
             (F, E),
             UnaryOpExpr<F, E>,
+            F::Output,
             (
                 F: UnaryOperator<E::OutElem>,
                 E: Expression<Dim = D>,
@@ -596,6 +599,7 @@ macro_rules! impl_inplace_op_all {
             $trait, $method,
             (F, E1, E2),
             BinaryOpExpr<F, E1, E2>,
+            F::Output,
             (
                 F: BinaryOperator<E1::OutElem, E2::OutElem>,
                 E1: Expression<Dim = D>,
