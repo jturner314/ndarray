@@ -550,10 +550,7 @@ macro_rules! impl_inplace_op {
             $($constraints)*
         {
             fn $method(&mut self, rhs: $rhs) {
-                rhs.eval_apply(
-                    |out, res| ::std::ops::$trait::$method(out, res),
-                    self.view_mut(),
-                )
+                rhs.eval_apply(::std::ops::$trait::$method, self.view_mut())
             }
         }
     }
