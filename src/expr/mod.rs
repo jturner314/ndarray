@@ -32,7 +32,31 @@
 //! # }
 //! ```
 //!
-//! This example illustrates cobroadcasting of two 2D arrays:
+//! If you have an existing result array, you can assign the result of
+//! evaluating the expression with [`.assign_eval()`] or use the arithmetic
+//! assignment operators (e.g. `+=`). This does not require allocation of
+//! memory for a new array.
+//!
+//! [`.assign_eval()`]: trait.ExpressionExt.html#tymethod.assign_eval
+//!
+//! ```
+//! # #[macro_use(array)]
+//! # extern crate ndarray;
+//! # use ndarray::prelude::*;
+//! # use ndarray::expr::{Expression, ExpressionExt};
+//! # fn main() {
+//! let a: Array1<i32> = array![1, 2, 3];
+//! let b: Array1<i32> = array![4, -5, 6];
+//! let c: Array1<i32> = array![-3, 7, -5];
+//! let mut out = Array1::zeros(3);
+//! out += -a.as_expr() * b.as_expr() + c.expr_map(|x| x.pow(2)) * a.as_expr();
+//! assert_eq!(out, array![5, 108, 57]);
+//! # }
+//! ```
+//!
+//! Expressions can be co-broadcasted, following [NumPy's broadcasting rules].
+//!
+//! [NumPy's broadcasting rules]: https://docs.scipy.org/doc/numpy/user/basics.broadcasting.html#general-broadcasting-rules
 //!
 //! ```
 //! # #[macro_use(array)]
@@ -58,7 +82,12 @@
 //! # }
 //! ```
 //!
-//! This example illustrates cobroadcasting of a 3D array and a 2D array:
+//! If you have arrays with different `D` types, you can still broadcast them,
+//! but you need to convert them to have the same `D` type. You can do this
+//! with `.insert_axis()` to increase the dimensionality of the
+//! smaller-dimensionality array, or call `.into_dyn()` on both arrays to
+//! convert them to `IxDyn`. This example illustrates cobroadcasting of a 3D
+//! array and a 2D array:
 //!
 //! ```
 //! # #[macro_use(array)]
