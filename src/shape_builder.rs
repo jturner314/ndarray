@@ -105,6 +105,13 @@ impl<D> Shape<D>
 {
     // Return a reference to the dimension
     //pub fn dimension(&self) -> &D { &self.dim }
-    /// Return the size of the shape in number of elements
+
+    /// Return the number of elements in an array with this shape.
     pub fn size(&self) -> usize { self.dim.size() }
+
+    /// Return the number of elements in an array with this shape, while
+    /// checking for overflow.
+    pub fn size_checked(&self) -> Option<usize> {
+        self.dim.size_checked()
+    }
 }
