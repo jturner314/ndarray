@@ -1658,6 +1658,33 @@ impl<A, S, D> ArrayBase<S, D> where S: Data<Elem=A>, D: Dimension
         }
     }
 
+    /// Traverse the array elements and apply the function as long as it
+    /// returns `Ok`, producing a single, final value.
+    ///
+    /// This is equivalent to `.iter().try_fold()`, except that **elements are
+    /// visited in arbitrary order**.
+    pub fn try_fold<'a, B, F, E>(&'a self, init: B, f: F) -> Result<B, E>
+    where
+        A: 'a,
+        F: FnMut(B, &'a A) -> Result<B, E>,
+    {
+        if let Some(slc) = self.as_slice_memory_order() {
+            slc.iter().try_fold(init, f)
+        } else {
+            let mut v = self.view();
+            // put the narrowest axis at the last position
+            if v.ndim() > 1 {
+                let last = v.ndim() - 1;
+                let narrow_axis = v.axes()
+                                   .filter(|ax| ax.len() > 1)
+                                   .min_by_key(|ax| ax.stride().abs())
+                                   .map_or(last, |ax| ax.axis().index());
+                v.swap_axes(last, narrow_axis);
+            }
+            v.into_elements_base().try_fold(init, f)
+        }
+    }
+
     /// Call `f` by reference on each element and create a new array
     /// with the new values.
     ///

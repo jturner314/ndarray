@@ -832,6 +832,38 @@ fn map1()
 }
 
 #[test]
+fn try_fold() {
+    let a = arr3(&[[[true, true, true],
+                    [true, true, true]],
+                   [[false, true, false],
+                    [true, true, true]]]);
+
+    // Contiguous, row-major.
+    let out = a.try_fold((), |(), elem| match &elem {
+        true => Ok(()),
+        false => Err(()),
+    });
+    assert!(out.is_err());
+
+    // Contiguous, custom layout.
+    let mut v = a.view();
+    v.swap_axes(0, 1);
+    let out = v.try_fold((), |(), elem| match &elem {
+        true => Ok(()),
+        false => Err(()),
+    });
+    assert!(out.is_err());
+
+    // Discontiguous.
+    let v = a.slice(s![0, 1.., 1..]);
+    let out = v.try_fold((), |(), elem| match &elem {
+        true => Ok(()),
+        false => Err(()),
+    });
+    assert!(out.is_ok());
+}
+
+#[test]
 fn as_slice_memory_order()
 {
     // test that mutation breaks sharing
