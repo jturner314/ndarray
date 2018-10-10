@@ -366,6 +366,11 @@ impl<'a, A, D: Dimension> Iterator for Iter<'a, A, D> {
         either!(self.inner, ref iter => iter.size_hint())
     }
 
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<&'a A> {
+        either_mut!(self.inner, iter => iter.nth(n))
+    }
+
     fn fold<Acc, G>(self, init: Acc, g: G) -> Acc
         where G: FnMut(Acc, Self::Item) -> Acc
     {
@@ -426,6 +431,11 @@ impl<'a, A, D: Dimension> Iterator for IterMut<'a, A, D> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         either!(self.inner, ref iter => iter.size_hint())
+    }
+
+    #[inline]
+    fn nth(&mut self, n: usize) -> Option<&'a mut A> {
+        either_mut!(self.inner, iter => iter.nth(n))
     }
 
     fn fold<Acc, G>(self, init: Acc, g: G) -> Acc
