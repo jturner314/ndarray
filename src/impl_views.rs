@@ -6,6 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use itertools::izip;
 use std::slice;
 
 use crate::imp_prelude::*;
@@ -17,6 +18,7 @@ use crate::{is_aligned, NdIndex, StrideShape};
 use crate::{
     ElementsBase,
     ElementsBaseMut,
+    IntoDimension,
     Iter,
     IterMut,
     Baseiter,
@@ -28,6 +30,84 @@ use crate::iter::{self, AxisIter, AxisIterMut};
 impl<'a, A, D> ArrayView<'a, A, D>
     where D: Dimension,
 {
+    /// Broadcast the view to a larger shape.
+    ///
+    /// The axes of the original view are mapped onto new axes as specified. In
+    /// other words, axis `i` of the original view becomes axis
+    /// `axes_mapping[i]` in the result.
+    ///
+    /// Returns `None` if the view cannot be broadcast to the specified shape.
+    ///
+    /// **Panics** if the axes in `axes_mapping` are not unique or if any of
+    /// the axes are too large for `shape.ndim()`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ndarray::array;
+    ///
+    /// let a = array![[1], [2]];
+    /// let b = a.view().broadcast_axes((2, 1), (3, 4, 2)).unwrap();
+    /// assert_eq!(
+    ///     b,
+    ///     array![
+    ///         [[1, 2], [1, 2], [1, 2], [1, 2]],
+    ///         [[1, 2], [1, 2], [1, 2], [1, 2]],
+    ///         [[1, 2], [1, 2], [1, 2], [1, 2]],
+    ///     ],
+    /// );
+    /// ```
+    pub fn broadcast_axes<E>(
+        self,
+        axes_mapping: impl IntoDimension<Dim = D>,
+        shape: E,
+    ) -> Option<ArrayView<'a, A, E::Dim>>
+    where
+        E: IntoDimension,
+    {
+        let axes_mapping = axes_mapping.into_dimension();
+        let new_shape = shape.into_dimension();
+        fn compute_strides<D, E>(axes_mapping: &D, new_shape: &E, old_shape: &D, old_strides: &D) -> Option<E>
+        where
+            D: Dimension,
+            E: Dimension,
+        {
+            assert_eq!(old_shape.ndim(), old_strides.ndim());
+            assert_eq!(old_shape.ndim(), axes_mapping.ndim());
+            assert!(new_shape.ndim() >= old_shape.ndim());
+            // Check that the axes in `axes_mapping` are unique and in-bounds of
+            // the new ndim.
+            {
+                let mut usage_counts = E::zeros(new_shape.ndim());
+                for &axis in axes_mapping.slice() {
+                    assert_eq!(usage_counts[axis], 0);
+                    usage_counts[axis] = 1;
+                }
+            }
+            // Check that axis lengths are okay and compute new strides.
+            let mut new_strides = E::zeros(new_shape.ndim());
+            for (old_axis, (&old_len, &old_stride)) in izip!(old_shape.slice(), old_strides.slice()).enumerate() {
+                let new_axis = axes_mapping[old_axis];
+                let new_len = new_shape[new_axis];
+                if old_len == new_len {
+                    new_strides[new_axis] = old_stride as usize;
+                } else if old_len == 1 {
+                    new_strides[new_axis] = 0;
+                } else {
+                    return None;
+                }
+            }
+            Some(new_strides)
+        }
+        let new_strides = compute_strides(&axes_mapping, &new_shape, &self.dim, &self.strides)?;
+        Some(ArrayView {
+            data: self.data,
+            ptr: self.ptr,
+            dim: new_shape,
+            strides: new_strides,
+        })
+    }
+
     /// Create a read-only array view borrowing its data from a slice.
     ///
     /// Checks whether `shape` are compatible with the slice's
