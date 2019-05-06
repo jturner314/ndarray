@@ -68,6 +68,7 @@ fn format_array<A, S, D, F>(
     f: &mut fmt::Formatter,
     mut format: F,
     limit: Ix,
+    depth: usize,
 ) -> fmt::Result
 where
     F: FnMut(&A, &mut fmt::Formatter) -> fmt::Result + Clone,
@@ -101,19 +102,31 @@ where
 
             let n_to_be_printed = to_be_printed.len();
 
+            let indent = " ".repeat(depth + 1);
+
             write!(f, "[")?;
             for (j, index) in to_be_printed.into_iter().enumerate() {
                 match index {
                     PrintableCell::ElementIndex(i) => {
+                        // Indent all but the first line.
+                        if j != 0 {
+                            write!(f, "{}", indent)?;
+                        }
                         // Proceed recursively with the (n-1)-dimensional slice
-                        format_array(&view.index_axis(Axis(0), i), f, format.clone(), limit)?;
+                        format_array(
+                            &view.index_axis(Axis(0), i),
+                            f,
+                            format.clone(),
+                            limit,
+                            depth + 1,
+                        )?;
                         // We need to add a separator after each slice,
                         // apart from the last one
                         if j != n_to_be_printed - 1 {
-                            write!(f, ",\n ")?
+                            write!(f, ",\n")?
                         }
                     }
-                    PrintableCell::Ellipses => write!(f, "...,\n ")?,
+                    PrintableCell::Ellipses => write!(f, "{}...,\n", indent)?,
                 }
             }
             write!(f, "]")?;
@@ -132,7 +145,7 @@ where
     S: Data<Elem = A>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)
     }
 }
 
@@ -146,7 +159,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Add extra information for Debug
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)?;
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)?;
         write!(
             f,
             " shape={:?}, strides={:?}, layout={:?}",
@@ -171,7 +184,7 @@ where
     S: Data<Elem = A>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)
     }
 }
 
@@ -184,7 +197,7 @@ where
     S: Data<Elem = A>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)
     }
 }
 /// Format the array using `LowerHex` and apply the formatting parameters used
@@ -196,7 +209,7 @@ where
     S: Data<Elem = A>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)
     }
 }
 
@@ -209,7 +222,7 @@ where
     S: Data<Elem = A>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT)
+        format_array(self, f, <_>::fmt, PRINT_ELEMENTS_LIMIT, 0)
     }
 }
 
