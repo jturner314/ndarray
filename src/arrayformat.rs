@@ -9,7 +9,7 @@ use super::{ArrayBase, Axis, Data, Dimension, Ix, NdProducer};
 use crate::aliases::Ix1;
 use std::fmt;
 
-const PRINT_ELEMENTS_LIMIT: Ix = 3;
+const PRINT_ELEMENTS_LIMIT: Ix = 100;
 
 fn format_1d_array<A, S, F>(
     view: &ArrayBase<S, Ix1>,
