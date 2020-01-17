@@ -885,7 +885,7 @@ where
     /// Return a producer and iterable that traverses over the *generalized*
     /// rows of the array and yields mutable array views.
     ///
-    /// Iterator element is `ArrayView1<A>` (1D read-write array view).
+    /// Iterator element is `ArrayViewMut1<A>` (1D read-write array view).
     pub fn genrows_mut(&mut self) -> LanesMut<'_, A, D::Smaller>
     where
         S: DataMut,
@@ -933,7 +933,7 @@ where
     /// Return a producer and iterable that traverses over the *generalized*
     /// columns of the array and yields mutable array views.
     ///
-    /// Iterator element is `ArrayView1<A>` (1D read-write array view).
+    /// Iterator element is `ArrayViewMut1<A>` (1D read-write array view).
     pub fn gencolumns_mut(&mut self) -> LanesMut<'_, A, D::Smaller>
     where
         S: DataMut,
