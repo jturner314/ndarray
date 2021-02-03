@@ -959,6 +959,10 @@ where
     ///
     /// Iterator element is `ArrayView1<A>` (1D array view).
     ///
+    /// When converted into an iterator with [`IntoIterator`], iteration occurs
+    /// in the *logical order* of the array (after the removal of `axis`),
+    /// which is where the rightmost index is varying the fastest.
+    ///
     /// ```
     /// use ndarray::{arr3, aview1, Axis};
     ///
@@ -989,6 +993,10 @@ where
     /// pointing in the direction of `axis`.
     ///
     /// Iterator element is `ArrayViewMut1<A>` (1D read-write array view).
+    ///
+    /// When converted into an iterator with [`IntoIterator`], iteration occurs
+    /// in the *logical order* of the array (after the removal of `axis`),
+    /// which is where the rightmost index is varying the fastest.
     pub fn lanes_mut(&mut self, axis: Axis) -> LanesMut<'_, A, D::Smaller>
     where
         S: DataMut,
@@ -1036,6 +1044,9 @@ where
     ///
     /// Iterator element is `ArrayView<A, D::Smaller>` (read-only array view).
     ///
+    /// Iteration using [`Iterator`] occurs in the *logical order* along the
+    /// axis.
+    ///
     /// See [*Subviews*](#subviews) for full documentation.
     ///
     /// **Panics** if `axis` is out of bounds.
@@ -1055,6 +1066,9 @@ where
     /// Iterator element is `ArrayViewMut<A, D::Smaller>`
     /// (read-write array view).
     ///
+    /// Iteration using [`Iterator`] occurs in the *logical order* along the
+    /// axis.
+    ///
     /// **Panics** if `axis` is out of bounds.
     pub fn axis_iter_mut(&mut self, axis: Axis) -> AxisIterMut<'_, A, D::Smaller>
     where
@@ -1071,6 +1085,9 @@ where
     ///
     /// The last view may have less elements if `size` does not divide
     /// the axis' dimension.
+    ///
+    /// Iteration using [`Iterator`] occurs in the *logical order* along the
+    /// axis.
     ///
     /// **Panics** if `axis` is out of bounds or if `size` is zero.
     ///
@@ -1101,7 +1118,10 @@ where
     /// Return an iterator that traverses over `axis` by chunks of `size`,
     /// yielding non-overlapping read-write views along that axis.
     ///
-    /// Iterator element is `ArrayViewMut<A, D>`
+    /// Iterator element is `ArrayViewMut<A, D>`.
+    ///
+    /// Iteration using [`Iterator`] occurs in the *logical order* along the
+    /// axis.
     ///
     /// **Panics** if `axis` is out of bounds or if `size` is zero.
     pub fn axis_chunks_iter_mut(&mut self, axis: Axis, size: usize) -> AxisChunksIterMut<'_, A, D>
@@ -1118,6 +1138,10 @@ where
     ///
     /// The produced element is a `ArrayView<A, D>` with exactly the dimension
     /// `chunk_size`.
+    ///
+    /// When converted into an iterator with [`IntoIterator`], iteration occurs
+    /// in the *logical order* of the array, which is where the rightmost index
+    /// is varying the fastest.
     ///
     /// **Panics** if any dimension of `chunk_size` is zero<br>
     /// (**Panics** if `D` is `IxDyn` and `chunk_size` does not match the
@@ -1137,6 +1161,10 @@ where
     ///
     /// The produced element is a `ArrayViewMut<A, D>` with exactly
     /// the dimension `chunk_size`.
+    ///
+    /// When converted into an iterator with [`IntoIterator`], iteration occurs
+    /// in the *logical order* of the array, which is where the rightmost index
+    /// is varying the fastest.
     ///
     /// **Panics** if any dimension of `chunk_size` is zero<br>
     /// (**Panics** if `D` is `IxDyn` and `chunk_size` does not match the
@@ -1180,6 +1208,10 @@ where
     ///
     /// The produced element is an `ArrayView<A, D>` with exactly the dimension
     /// `window_size`.
+    ///
+    /// When converted into an iterator with [`IntoIterator`], iteration occurs
+    /// in the *logical order* of the array, which is where the rightmost index
+    /// is varying the fastest.
     ///
     /// **Panics** if any dimension of `window_size` is zero.<br>
     /// (**Panics** if `D` is `IxDyn` and `window_size` does not match the
